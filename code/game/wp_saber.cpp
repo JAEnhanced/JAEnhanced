@@ -224,7 +224,7 @@ int forcePowerNeeded[NUM_FORCE_POWERS] =
 	40,//FP_DESTRUCTION
 	50,//FP_INSANITY
 	35,//FP_STASIS
-	20,//FP_BLINDING
+	50,//FP_BLINDING
 	90,//FP_DEADLYSIGHT
 	20,//FP_REPULSE
 	100,//FP_INVULNERABILITY
@@ -334,6 +334,16 @@ int stasisTime[NUM_FORCE_POWER_LEVELS] =
 	10000,//10000,
 	15000//15000
 };
+
+int blindingTime[NUM_FORCE_POWER_LEVELS] =
+{
+	0,//none
+	15000,//rank 1
+	20000,//rank 2
+	30000//rank 3
+};
+//Rank 3 can also blind Force-users (saber/Reborn), but only briefly.  Tune via playtesting.
+#define BLINDING_FORCEUSER_TIME 2000
 
 //NOTE: keep in synch with table below!!!
 int saberThrowDist[NUM_FORCE_POWER_LEVELS] =
@@ -13214,9 +13224,7 @@ void ForceInsanity( gentity_t *self )
 		NPC_SetAnim( self, SETANIM_TORSO, BOTH_MINDTRICK1, SETANIM_FLAG_OVERRIDE|SETANIM_FLAG_RESTART|SETANIM_FLAG_HOLD );
 		//FIXME: build-up or delay this until in proper part of anim
 	}
-	
-	WP_ForcePowerStart( self, FP_INSANITY, 0 );
-	
+
 	self->client->ps.saberMove = self->client->ps.saberBounceMove = LS_READY;//don't finish whatever saber anim you may have been in
 	self->client->ps.saberBlocked = BLOCKED_NONE;
 	self->client->ps.weaponTime = 1000;
@@ -13359,6 +13367,12 @@ void ForceStasis( gentity_t *self )
 
 void ForceBlinding( gentity_t *self )
 {
+	trace_t		tr;
+	vec3_t		end, forward;
+	gentity_t	*traceEnt;
+	qboolean	targetLive = qfalse;
+	int			anim, parts;
+
 	if ( self->health <= 0 )
 	{
 		return;
@@ -13367,7 +13381,7 @@ void ForceBlinding( gentity_t *self )
 	{
 		return;
 	}
-	
+
 	if ( self->client->ps.weaponTime >= 800 )
 	{//just did one!
 		return;
@@ -13376,13 +13390,148 @@ void ForceBlinding( gentity_t *self )
 	{//FIXME: can this be a way to break out?
 		return;
 	}
-	
-	gi.Printf(S_COLOR_BLUE "Used Force Blinding\n");
-	
-	//TODO: CODE
-	
+
+	//Trace forward for a single target (based on Mind Trick / Insanity)
+	AngleVectors( self->client->ps.viewangles, forward, NULL, NULL );
+	VectorNormalize( forward );
+	VectorMA( self->client->renderInfo.eyePoint, 2048, forward, end );
+
+	gi.trace( &tr, self->client->renderInfo.eyePoint, vec3_origin, vec3_origin, end, self->s.number, MASK_OPAQUE|CONTENTS_BODY, (EG2_Collision)0, 0 );
+	if ( tr.entityNum != ENTITYNUM_NONE && tr.fraction != 1.0 && !tr.allsolid && !tr.startsolid )
+	{
+		traceEnt = &g_entities[tr.entityNum];
+
+		if ( !( traceEnt->NPC && (traceEnt->NPC->scriptFlags & SCF_NO_FORCE) ) )
+		{
+			if ( traceEnt && traceEnt->client )
+			{
+				switch ( traceEnt->client->NPC_class )
+				{
+				case CLASS_GALAKMECH://in armor
+				case CLASS_ATST://too big
+					//no droids either
+				case CLASS_PROBE:
+				case CLASS_GONK:
+				case CLASS_R2D2:
+				case CLASS_R5D2:
+				case CLASS_MARK1:
+				case CLASS_MARK2:
+				case CLASS_MOUSE:
+				case CLASS_SEEKER:
+				case CLASS_REMOTE:
+				case CLASS_PROTOCOL:
+				case CLASS_ASSASSIN_DROID:
+				case CLASS_SABER_DROID:
+				case CLASS_BOBAFETT:
+					break;
+				case CLASS_RANCOR:
+					if ( !(traceEnt->spawnflags&1) )
+					{
+						targetLive = qtrue;
+					}
+					break;
+				default:
+					targetLive = qtrue;
+					break;
+				}
+			}
+
+			if ( targetLive
+				&& traceEnt->NPC
+				&& traceEnt->health > 0
+				&& traceEnt->NPC->charmedTime < level.time
+				&& traceEnt->NPC->insanityTime < level.time )
+			{//hit an organic non-player who isn't already blinded/confused
+				if ( (traceEnt->NPC->scriptFlags&SCF_NO_MIND_TRICK) )
+				{
+					if ( traceEnt->client->NPC_class == CLASS_GALAKMECH )
+					{
+						G_AddVoiceEvent( traceEnt, Q_irand( EV_CONFUSE1, EV_CONFUSE3 ), Q_irand( 3000, 5000 ) );
+					}
+				}
+				else
+				{
+					int			blindDur = 0;
+					//engine boss flags (cover Rosh + Yoda + the standard boss/subboss spawns),
+					//plus an explicit class list as a fallback for console-spawned bosses
+					qboolean	saberBoss = (qboolean)( (traceEnt->NPC->aiFlags & (NPCAI_BOSS_CHARACTER|NPCAI_SUBBOSS_CHARACTER|NPCAI_ROSH))
+											|| traceEnt->client->NPC_class == CLASS_DESANN
+											|| traceEnt->client->NPC_class == CLASS_TAVION
+											|| traceEnt->client->NPC_class == CLASS_ALORA
+											|| traceEnt->client->NPC_class == CLASS_LUKE
+											|| traceEnt->client->NPC_class == CLASS_KYLE
+											|| traceEnt->client->NPC_class == CLASS_MORGANKATARN );
+					qboolean	forceUser = (qboolean)( traceEnt->s.weapon == WP_SABER || traceEnt->client->NPC_class == CLASS_REBORN );
+
+					if ( saberBoss )
+					{//saber-wielding bosses can't be blinded at all
+						NPC_Jedi_PlayConfusionSound( traceEnt );
+					}
+					else if ( forceUser )
+					{//Jedi/Reborn resist blinding except at Rank 3, and then only briefly
+						if ( self->client->ps.forcePowerLevel[FP_BLINDING] > FORCE_LEVEL_2 )
+						{
+							blindDur = BLINDING_FORCEUSER_TIME;
+						}
+						else
+						{
+							NPC_Jedi_PlayConfusionSound( traceEnt );
+						}
+					}
+					else
+					{
+						blindDur = blindingTime[self->client->ps.forcePowerLevel[FP_BLINDING]];
+					}
+
+					if ( blindDur > 0 )
+					{//blind them: grab head, can't fight for the duration (no charm)
+						//Force Absorb feeds the absorber some force; if it covers the power, the blind is negated
+						int absorbed = WP_AbsorbConversion( traceEnt, traceEnt->client->ps.forcePowerLevel[FP_ABSORB], self, FP_BLINDING, self->client->ps.forcePowerLevel[FP_BLINDING], forcePowerNeeded[FP_BLINDING] );
+						if ( absorbed == -1 )
+						{//-1 == no Absorb in play; any active Absorb (even a lower level) eats this binary CC entirely
+							if ( PM_HasAnimation( traceEnt, BOTH_SONICPAIN_HOLD ) )
+							{
+								NPC_SetAnim( traceEnt, SETANIM_LEGS, BOTH_SONICPAIN_HOLD, SETANIM_FLAG_NORMAL );
+								NPC_SetAnim( traceEnt, SETANIM_TORSO, BOTH_SONICPAIN_HOLD, SETANIM_FLAG_OVERRIDE|SETANIM_FLAG_HOLD );
+								traceEnt->client->ps.torsoAnimTimer += blindDur;
+								traceEnt->client->ps.weaponTime = traceEnt->client->ps.torsoAnimTimer;
+							}
+							else
+							{//models with a custom/limited skeleton (e.g. Hazard Trooper) lack BOTH_SONICPAIN_HOLD -
+								//lock their weapon directly so the blind still stops them from firing
+								traceEnt->client->ps.weaponTime = blindDur;
+							}
+							//reuse the confusion/stun timer; G_CheckInsanity keeps the head-grab anim going
+							traceEnt->NPC->insanityTime = level.time + blindDur;
+							if ( traceEnt->enemy )
+							{
+								G_ClearEnemy( traceEnt );
+							}
+							if ( traceEnt->ghoul2.size() && traceEnt->headBolt != -1 )
+							{//bright sparks flashing around the head for the blind duration (no sound so it doesn't retrigger every loop)
+								G_PlayEffect( G_EffectIndex( "sparks/spark_nosnd" ), traceEnt->playerModel, traceEnt->headBolt, traceEnt->s.number, traceEnt->currentOrigin, blindDur, qtrue );
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
 	WP_ForcePowerStart( self, FP_BLINDING, 0 );
-	
+
+	//Caster animation - off-hand force gesture, like a Push
+	anim = BOTH_FORCEPUSH;
+	parts = SETANIM_TORSO;
+	if ( !PM_InKnockDown( &self->client->ps ) )
+	{
+		if ( !VectorLengthSquared( self->client->ps.velocity ) && !(self->client->ps.pm_flags&PMF_DUCKED) )
+		{
+			parts = SETANIM_BOTH;
+		}
+	}
+	NPC_SetAnim( self, parts, anim, SETANIM_FLAG_OVERRIDE|SETANIM_FLAG_HOLD|SETANIM_FLAG_RESTART );
+
 	self->client->ps.saberMove = self->client->ps.saberBounceMove = LS_READY;//don't finish whatever saber anim you may have been in
 	self->client->ps.saberBlocked = BLOCKED_NONE;
 	self->client->ps.weaponTime = 1000;
@@ -13515,7 +13664,8 @@ int WP_AbsorbConversion(gentity_t *attacked, int atdAbsLevel, gentity_t *attacke
 		atPower != FP_PUSH &&
 		atPower != FP_PULL &&
 		atPower != FP_REPULSE &&
-		atPower != FP_STASIS)
+		atPower != FP_STASIS &&
+		atPower != FP_BLINDING)
 	{ //Only these powers can be absorbed
 		return -1;
 	}
@@ -15623,7 +15773,7 @@ void WP_InitForcePowers( gentity_t *ent )
 		else
 		{
 			ent->client->ps.forcePowersKnown = ( 1 << FP_HEAL )|( 1 << FP_LEVITATION )|( 1 << FP_SPEED )|( 1 << FP_PUSH )|( 1 << FP_PULL )|( 1 << FP_TELEPATHY )|( 1 << FP_GRIP )|( 1 << FP_LIGHTNING)|( 1 << FP_SABERTHROW)|( 1 << FP_SABER_DEFENSE )|( 1 << FP_SABER_OFFENSE )|( 1<< FP_RAGE )|( 1<< FP_DRAIN )|( 1<< FP_PROTECT )|( 1<< FP_ABSORB )|( 1<< FP_SEE )|( 1 << FP_DESTRUCTION )
-				|( 1 << FP_INSANITY )|( 1 << FP_STASIS )/*|( 1 << FP_BLINDING )|(1 << FP_DEADLYSIGHT)|(1 << FP_REPULSE)|(1 << FP_INVULNERABILITY)*/;
+				|( 1 << FP_INSANITY )|( 1 << FP_STASIS )|( 1 << FP_BLINDING )/*|(1 << FP_DEADLYSIGHT)|(1 << FP_REPULSE)|(1 << FP_INVULNERABILITY)*/;
 			ent->client->ps.forcePowerLevel[FP_HEAL] = FORCE_LEVEL_2;
 			ent->client->ps.forcePowerLevel[FP_LEVITATION] = FORCE_LEVEL_2;
 			ent->client->ps.forcePowerLevel[FP_PUSH] = FORCE_LEVEL_1;
@@ -15646,7 +15796,7 @@ void WP_InitForcePowers( gentity_t *ent )
 			ent->client->ps.forcePowerLevel[FP_DESTRUCTION] = FORCE_LEVEL_2;
 			ent->client->ps.forcePowerLevel[FP_INSANITY] = FORCE_LEVEL_2;
 			ent->client->ps.forcePowerLevel[FP_STASIS] = FORCE_LEVEL_2;
-			ent->client->ps.forcePowerLevel[FP_BLINDING] = FORCE_LEVEL_0;
+			ent->client->ps.forcePowerLevel[FP_BLINDING] = FORCE_LEVEL_1;
 			
 			ent->client->ps.forcePowerLevel[FP_DEADLYSIGHT] = FORCE_LEVEL_0;
 			ent->client->ps.forcePowerLevel[FP_REPULSE] = FORCE_LEVEL_0;

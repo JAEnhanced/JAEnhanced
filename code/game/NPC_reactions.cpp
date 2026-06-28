@@ -533,20 +533,16 @@ void NPC_Pain( gentity_t *self, gentity_t *inflictor, gentity_t *other, const ve
 	if ( NPCInfo->ignorePain == qfalse )
 	{
 		NPCInfo->confusionTime = 0;//clear any charm or confusion, regardless
-		if (NPCInfo->insanityTime && NPCInfo->insanityTime > level.time)
-		{
-			NPCInfo->insanityTime = 0;
-			NPC->client->ps.torsoAnimTimer = 0;
-			NPC->client->ps.weaponTime -= level.time - NPCInfo->insanityTime;
-			if (NPC->client->ps.weaponTime < 0)
-			{
-				NPC->client->ps.weaponTime = 0;
-			}
-		}
+		//NOTE: insanityTime (Force Insanity / Blinding) is intentionally NOT cleared by damage.
+		//Unlike Mind Trick's confusion (a light jarring), a "wracked mind" / blinded state should
+		//persist through being hit - G_CheckInsanity re-applies the head-grab anim after the pain flinch.
 		if ( NPC->ghoul2.size() && NPC->headBolt != -1 )
 		{
 			G_StopEffect("force/confusion", NPC->playerModel, NPC->headBolt, NPC->s.number );
-			G_StopEffect("force/drain_hand", NPC->playerModel, NPC->headBolt, NPC->s.number );
+			if ( !(NPCInfo->insanityTime > level.time) )
+			{//don't kill the head FX while the insanity/blind is still running
+				G_StopEffect("force/drain_hand", NPC->playerModel, NPC->headBolt, NPC->s.number );
+			}
 		}
 		if ( damage != -1 )
 		{//-1 == don't play pain anim
