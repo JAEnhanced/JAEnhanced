@@ -13198,6 +13198,11 @@ void ForceInsanity( gentity_t *self )
 					traceEnt->client->ps.torsoAnimTimer += insanityTime[self->client->ps.forcePowerLevel[FP_INSANITY]];
 					traceEnt->client->ps.weaponTime = traceEnt->client->ps.torsoAnimTimer;
 				}
+				else
+				{//models with a custom/limited skeleton (e.g. Hazard Trooper) lack BOTH_SONICPAIN_HOLD -
+					//lock their weapon directly so the confuse still stops them from firing
+					traceEnt->client->ps.weaponTime = insanityTime[self->client->ps.forcePowerLevel[FP_INSANITY]];
+				}
 				traceEnt->NPC->insanityTime = level.time + insanityTime[self->client->ps.forcePowerLevel[FP_INSANITY]];//confused for 5-10 seconds
 				if ( traceEnt->enemy )
 				{
