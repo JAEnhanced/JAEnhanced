@@ -1386,6 +1386,15 @@ void FireWeapon( gentity_t *ent, qboolean alt_fire )
 		}
 	}
 
+	if ( ent->NPC && ent->NPC->blindTime > level.time )
+	{//Force Blinding: a blinded NPC fires wildly - scatter the finalized shot direction (any weapon, any class)
+		vec3_t	blindAngles;
+		vectoangles( forwardVec, blindAngles );
+		blindAngles[PITCH] += Q_flrand( -1.0f, 1.0f ) * BLIND_FIRE_SPREAD;
+		blindAngles[YAW]   += Q_flrand( -1.0f, 1.0f ) * BLIND_FIRE_SPREAD;
+		AngleVectors( blindAngles, forwardVec, vrightVec, up );
+	}
+
 	// fire the specific weapon
 	switch( ent->s.weapon )
 	{

@@ -4166,6 +4166,7 @@ extern void RunEmplacedWeapon( gentity_t *ent, usercmd_t **ucmd );
 		self->NPC->charmedTime = 0;
 		self->NPC->insanityTime = 0;
 		self->NPC->darkCharmedTime = 0;
+		self->NPC->blindTime = 0;
 		if ( self->ghoul2.size() )
 		{
 			if ( self->chestBolt != -1 )

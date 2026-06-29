@@ -338,12 +338,13 @@ int stasisTime[NUM_FORCE_POWER_LEVELS] =
 int blindingTime[NUM_FORCE_POWER_LEVELS] =
 {
 	0,//none
-	15000,//rank 1
-	20000,//rank 2
-	30000//rank 3
+	10000,//rank 1 - ~8s of wild-fire after the 2s stun
+	20000,//rank 2 - ~18s
+	30000//rank 3 - ~28s
 };
-//Rank 3 can also blind Force-users (saber/Reborn), but only briefly.  Tune via playtesting.
-#define BLINDING_FORCEUSER_TIME 2000
+//Initial head-grab stun applied to every blinded target before the wild-fire phase begins.
+//Also the entire effect vs Rank-3 Force-users (saber/Reborn): they get the stun, no wild-fire phase.
+#define BLINDING_STUN_TIME 2000
 
 //NOTE: keep in synch with table below!!!
 int saberThrowDist[NUM_FORCE_POWER_LEVELS] =
@@ -13120,11 +13121,7 @@ void ForceInsanity( gentity_t *self )
 			case CLASS_SABER_DROID:
 			case CLASS_BOBAFETT:
 				break;
-			case CLASS_RANCOR:
-				if ( !(traceEnt->spawnflags&1) )
-				{
-					targetLive = qtrue;
-				}
+			case CLASS_RANCOR://rancor (regular or mutated) is immune to this Force CC
 				break;
 			default:
 				targetLive = qtrue;
@@ -13301,7 +13298,8 @@ void ForceStasis( gentity_t *self )
 	}
 	
 	if(traceEnt->health > 0 &&
-	   traceEnt->s.weapon != WP_SABER && traceEnt->client && traceEnt->client->NPC_class != CLASS_REBORN)
+	   traceEnt->s.weapon != WP_SABER && traceEnt->client && traceEnt->client->NPC_class != CLASS_REBORN
+	   && traceEnt->client->NPC_class != CLASS_RANCOR)
 	{
 		int modPowerLevel = WP_AbsorbConversion(traceEnt, traceEnt->client->ps.forcePowerLevel[FP_ABSORB], self, FP_STASIS, self->client->ps.forcePowerLevel[FP_STASIS], forcePowerNeeded[FP_STASIS]);
 		int actualPowerLevel;
@@ -13429,11 +13427,7 @@ void ForceBlinding( gentity_t *self )
 				case CLASS_SABER_DROID:
 				case CLASS_BOBAFETT:
 					break;
-				case CLASS_RANCOR:
-					if ( !(traceEnt->spawnflags&1) )
-					{
-						targetLive = qtrue;
-					}
+				case CLASS_RANCOR://rancor (regular or mutated) is immune to this Force CC
 					break;
 				default:
 					targetLive = qtrue;
@@ -13456,7 +13450,8 @@ void ForceBlinding( gentity_t *self )
 				}
 				else
 				{
-					int			blindDur = 0;
+					int			stunDur = 0;		//initial head-grab stun (every blinded target)
+					int			blindFireDur = 0;	//wild-fire phase after the stun (non-Force-users only)
 					//engine boss flags (cover Rosh + Yoda + the standard boss/subboss spawns),
 					//plus an explicit class list as a fallback for console-spawned bosses
 					qboolean	saberBoss = (qboolean)( (traceEnt->NPC->aiFlags & (NPCAI_BOSS_CHARACTER|NPCAI_SUBBOSS_CHARACTER|NPCAI_ROSH))
@@ -13473,10 +13468,10 @@ void ForceBlinding( gentity_t *self )
 						NPC_Jedi_PlayConfusionSound( traceEnt );
 					}
 					else if ( forceUser )
-					{//Jedi/Reborn resist blinding except at Rank 3, and then only briefly
+					{//Jedi/Reborn resist blinding except at Rank 3, and then only the brief stun (no wild-fire phase)
 						if ( self->client->ps.forcePowerLevel[FP_BLINDING] > FORCE_LEVEL_2 )
 						{
-							blindDur = BLINDING_FORCEUSER_TIME;
+							stunDur = BLINDING_STUN_TIME;
 						}
 						else
 						{
@@ -13484,37 +13479,45 @@ void ForceBlinding( gentity_t *self )
 						}
 					}
 					else
-					{
-						blindDur = blindingTime[self->client->ps.forcePowerLevel[FP_BLINDING]];
+					{//regular enemy: brief stun, then wild-fire for the rank's duration
+						stunDur = BLINDING_STUN_TIME;
+						blindFireDur = blindingTime[self->client->ps.forcePowerLevel[FP_BLINDING]];
 					}
 
-					if ( blindDur > 0 )
-					{//blind them: grab head, can't fight for the duration (no charm)
-						//Force Absorb feeds the absorber some force; if it covers the power, the blind is negated
+					if ( stunDur > 0 )
+					{//blind them
+						//Force Absorb feeds the absorber some force; any active Absorb (even a lower level) negates this binary CC
 						int absorbed = WP_AbsorbConversion( traceEnt, traceEnt->client->ps.forcePowerLevel[FP_ABSORB], self, FP_BLINDING, self->client->ps.forcePowerLevel[FP_BLINDING], forcePowerNeeded[FP_BLINDING] );
 						if ( absorbed == -1 )
-						{//-1 == no Absorb in play; any active Absorb (even a lower level) eats this binary CC entirely
+						{//-1 == no Absorb in play
+							//--- initial head-grab stun (reuses insanityTime / G_CheckInsanity) ---
 							if ( PM_HasAnimation( traceEnt, BOTH_SONICPAIN_HOLD ) )
 							{
 								NPC_SetAnim( traceEnt, SETANIM_LEGS, BOTH_SONICPAIN_HOLD, SETANIM_FLAG_NORMAL );
 								NPC_SetAnim( traceEnt, SETANIM_TORSO, BOTH_SONICPAIN_HOLD, SETANIM_FLAG_OVERRIDE|SETANIM_FLAG_HOLD );
-								traceEnt->client->ps.torsoAnimTimer += blindDur;
+								traceEnt->client->ps.torsoAnimTimer += stunDur;
 								traceEnt->client->ps.weaponTime = traceEnt->client->ps.torsoAnimTimer;
 							}
 							else
 							{//models with a custom/limited skeleton (e.g. Hazard Trooper) lack BOTH_SONICPAIN_HOLD -
-								//lock their weapon directly so the blind still stops them from firing
-								traceEnt->client->ps.weaponTime = blindDur;
+								//lock their weapon for the stun
+								traceEnt->client->ps.weaponTime = stunDur;
 							}
-							//reuse the confusion/stun timer; G_CheckInsanity keeps the head-grab anim going
-							traceEnt->NPC->insanityTime = level.time + blindDur;
+							traceEnt->NPC->insanityTime = level.time + stunDur;
 							if ( traceEnt->enemy )
 							{
 								G_ClearEnemy( traceEnt );
 							}
+							//--- wild-fire phase: after the stun the NPC keeps fighting but its aim is wrecked ---
+							if ( blindFireDur > 0 )
+							{//after the stun they keep fighting, but FireWeapon scatters every shot (see BLIND_FIRE_SPREAD)
+								traceEnt->NPC->blindTime = level.time + blindFireDur;
+							}
+							//bright sparks flashing around the head for the whole effect (no sound so it doesn't retrigger each loop)
 							if ( traceEnt->ghoul2.size() && traceEnt->headBolt != -1 )
-							{//bright sparks flashing around the head for the blind duration (no sound so it doesn't retrigger every loop)
-								G_PlayEffect( G_EffectIndex( "sparks/spark_nosnd" ), traceEnt->playerModel, traceEnt->headBolt, traceEnt->s.number, traceEnt->currentOrigin, blindDur, qtrue );
+							{
+								int fxDur = (blindFireDur > stunDur) ? blindFireDur : stunDur;
+								G_PlayEffect( G_EffectIndex( "sparks/spark_nosnd" ), traceEnt->playerModel, traceEnt->headBolt, traceEnt->s.number, traceEnt->currentOrigin, fxDur, qtrue );
 							}
 						}
 					}
