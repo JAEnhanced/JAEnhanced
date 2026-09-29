@@ -79,7 +79,10 @@ if(BuildSPEngine OR BuildJK2SPEngine)
 	endif()
 
 	if(UseInternalSDL2)
-		if(CMAKE_SIZEOF_VOID_P EQUAL 4)
+		if(APPLE)
+			set(SPEngineLibraries ${SPEngineLibraries}
+				${OpenJKLibDir}/SDL2/lib/macos/libSDL2-2.0.0.dylib)
+		elseif(CMAKE_SIZEOF_VOID_P EQUAL 4)
 			set(SPEngineLibraries
 				${SPEngineLibraries}
 				${OpenJKLibDir}/SDL2/lib/x86/SDL2main.lib
@@ -413,13 +416,41 @@ if(BuildSPEngine OR BuildJK2SPEngine)
 			else(MakeApplicationBundles)
 				add_executable(${ProjectName} ${SPEngineFiles})
 			endif(MakeApplicationBundles)
+			if(APPLE AND UseInternalSDL2)
+				if(MakeApplicationBundles)
+					set_target_properties(${ProjectName} PROPERTIES
+						INSTALL_RPATH "@executable_path/../Frameworks"
+						BUILD_WITH_INSTALL_RPATH TRUE)
+					add_custom_command(TARGET ${ProjectName} POST_BUILD
+						COMMAND ${CMAKE_COMMAND} -E make_directory
+						"$<TARGET_FILE_DIR:${ProjectName}>/../Frameworks"
+						COMMAND ${CMAKE_COMMAND} -E copy_if_different
+						"${OpenJKLibDir}/SDL2/lib/macos/libSDL2-2.0.0.dylib"
+						"$<TARGET_FILE_DIR:${ProjectName}>/../Frameworks/")
+					set(SPEngineBundleSearchDirs
+						"${OpenJKLibDir}/SDL2/lib/macos;${CMAKE_BINARY_DIR}/${ProjectName}.app/Contents/Frameworks")
+				else()
+					set_target_properties(${ProjectName} PROPERTIES
+						INSTALL_RPATH "@executable_path"
+						BUILD_WITH_INSTALL_RPATH TRUE)
+
+					add_custom_command(TARGET ${ProjectName} POST_BUILD
+						COMMAND ${CMAKE_COMMAND} -E copy_if_different
+						"${OpenJKLibDir}/SDL2/lib/macos/libSDL2-2.0.0.dylib"
+						"$<TARGET_FILE_DIR:${ProjectName}>/")
+					set(SPEngineExtraInstallFiles
+						${SPEngineExtraInstallFiles}
+						${OpenJKLibDir}/SDL2/lib/macos/libSDL2-2.0.0.dylib
+					)
+				endif()
+			endif()
 		endif(WIN32)
 
 		if(MakeApplicationBundles)
 			install(CODE "
 				include(BundleUtilities)
 				set(BU_CHMOD_BUNDLE_ITEMS ON)
-				fixup_bundle(\"${CMAKE_BINARY_DIR}/${ProjectName}.app\" \"\" \"\")
+				fixup_bundle(\"${CMAKE_BINARY_DIR}/${ProjectName}.app\" \"\" \"${SPEngineBundleSearchDirs}\")
 				"
 				COMPONENT Runtime)
 			install(TARGETS ${ProjectName}
