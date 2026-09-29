@@ -115,6 +115,7 @@ jobs:
           if [ ${{ matrix.arch }} == "x86" ]; then
             OPTIONS+=" -DCMAKE_TOOLCHAIN_FILE=cmake/Toolchains/linux-i686.cmake"
           fi
+          OPTIONS+=" -DUseInternalJPEG=ON"
           cmake $GITHUB_WORKSPACE $OPTIONS
 
       - name: Build
@@ -147,11 +148,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner: [macos-13, macos-14]
+        runner: [macos-15-intel, macos-14]
         build_type: [Debug, Release]
         portable: [Non-Portable]
         include:
-          - runner: macos-13
+          - runner: macos-15-intel
             arch: x86_64
           - runner: macos-14
             arch: arm64
@@ -161,7 +162,7 @@ jobs:
 
       - name: Create Build Environment
         run: |
-          brew install zlib libjpeg libpng sdl2
+          brew install zlib libjpeg libpng
           cmake -E make_directory ${{ github.workspace }}/build
 
       - name: Configure CMake
@@ -193,6 +194,7 @@ jobs:
         shell: bash
         run: |
           chmod +x ja_enhanced.${{ matrix.arch }}.app/Contents/MacOS/ja_enhanced.${{ matrix.arch }}
+          codesign --force --deep --sign - ja_enhanced.${{ matrix.arch }}.app
           tar -czvf JAEnhanced-macos-${{ matrix.arch }}-${{ matrix.build_type }}-${{ matrix.portable }}.tar.gz *
 
       - uses: actions/upload-artifact@v4
