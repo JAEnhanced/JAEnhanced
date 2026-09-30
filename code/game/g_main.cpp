@@ -632,6 +632,30 @@ void G_FindTeams( void ) {
 
 /*
 ============
+G_ValidateSkill
+
+Only g_spskill 0-2 is supported: spawnflags 256/512/1024 hide entities per skill, and
+the next bit (2048) is NO_EXPLOSION/SHY, so higher values would drop those entities and
+break AI tuning. Jedi Master is g_spskill 2 with handicap 50; older JAE menus set it as
+g_spskill 3, which also comes back from their savegames and configs.
+============
+*/
+static void G_ValidateSkill( void ) {
+	if ( g_spskill->integer > 2 )
+	{
+		gi.Printf( S_COLOR_YELLOW "g_spskill %s is not supported, using Jedi Master (g_spskill 2, handicap 50)\n", g_spskill->string );
+		gi.cvar_set( "g_spskill", "2" );
+		gi.cvar_set( "handicap", "50" );
+	}
+	else if ( g_spskill->integer < 0 )
+	{
+		gi.Printf( S_COLOR_YELLOW "g_spskill %s is not supported, using Jedi Padawan (g_spskill 0)\n", g_spskill->string );
+		gi.cvar_set( "g_spskill", "0" );
+	}
+}
+
+/*
+============
 G_InitCvars
 
 ============
@@ -795,6 +819,7 @@ void InitGame(  const char *mapname, const char *spawntarget, int checkSum, cons
 	srand( randomSeed );
 
 	G_InitCvars();
+	G_ValidateSkill();	// before any entities spawn
 
 	G_InitMemory();
 
@@ -1971,6 +1996,8 @@ void G_RunFrame( int levelTime ) {
 	level.framenum++;
 	level.previousTime = level.time;
 	level.time = levelTime;
+
+	G_ValidateSkill();	// g_spskill can be changed mid-level from the menu or console
 
 	//ResetTeamCounters();
 	NAV::DecayDangerSenses();
