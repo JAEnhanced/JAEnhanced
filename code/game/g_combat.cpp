@@ -50,6 +50,8 @@ extern cvar_t		*d_slowmodeath;
 extern gentity_t *player;
 extern cvar_t	*debug_subdivision;
 extern cvar_t	*g_dismemberProbabilities;
+extern cvar_t	*g_dismemberRealistic;
+extern int		saberDismemberLoc;
 extern cvar_t   *g_broadsword;
 
 gentity_t *g_lastClientDamaged;
@@ -2307,11 +2309,11 @@ static qboolean G_Dismemberable( gentity_t *self, int hitLoc )
 
 static qboolean G_Dismemberable2( gentity_t *self, int hitLoc )
 {
-	if ( self->client->dismembered )
+	if ( self->client->dismembered && !g_dismemberRealistic->integer )
 	{//cannot dismember me right now
 		return qfalse;
 	}
-	if ( !debug_subdivision->integer && g_saberRealisticCombat->integer < 2 )
+	if ( !debug_subdivision->integer && g_saberRealisticCombat->integer < 2 && !g_dismemberRealistic->integer )
 	{
 		if ( g_dismemberProbabilities->value <= 0.0f )
 		{//add the passed-in damage to the locationDamage array, check to see if it's taken enough damage to actually dismember
@@ -2346,6 +2348,27 @@ qboolean G_GetRootSurfNameWithVariant( gentity_t *ent, const char *rootSurfName,
 	}
 	Q_strncpyz( returnSurfName, rootSurfName, returnSize );
 	return qfalse;
+}
+
+// With g_dismemberRealistic, a killing saber hit that doesn't count as a dismembering
+// hit still cuts where the blade hit, and g_dismemberProbabilities is the percent chance
+// of a cut (0 = always) instead of a scale on the NPC's own probabilities. The damage
+// itself keeps using the normal hitLoc.
+static int G_DismemberLoc( int hitLoc, int meansOfDeath )
+{
+	if ( !g_dismemberRealistic->integer || meansOfDeath != MOD_SABER )
+	{
+		return hitLoc;
+	}
+	if ( hitLoc == HL_NONE )
+	{
+		hitLoc = saberDismemberLoc;
+	}
+	if ( g_dismemberProbabilities->value > 0.0f && Q_flrand( 0.0f, 100.0f ) > g_dismemberProbabilities->value )
+	{
+		return HL_NONE;
+	}
+	return hitLoc;
 }
 
 extern qboolean G_StandardHumanoid( gentity_t *self );
@@ -3657,7 +3680,7 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 			anim = G_PickDeathAnim( self, self->pos1, damage, meansOfDeath, hitLoc );
 			if ( dflags & DAMAGE_DISMEMBER )
 			{
-				G_DoDismemberment( self, self->pos1, meansOfDeath, damage, hitLoc );
+				G_DoDismemberment( self, self->pos1, meansOfDeath, damage, G_DismemberLoc( hitLoc, meansOfDeath ) );
 			}
 			if ( anim >= 0 )
 			{
@@ -4637,7 +4660,7 @@ extern void RunEmplacedWeapon( gentity_t *ent, usercmd_t **ucmd );
 
 	//do any dismemberment if there's any to do...
 	if ( (dflags&DAMAGE_DISMEMBER)
-		&& G_DoDismemberment( self, self->pos1, meansOfDeath, damage, hitLoc )
+		&& G_DoDismemberment( self, self->pos1, meansOfDeath, damage, G_DismemberLoc( hitLoc, meansOfDeath ) )
 		&& !specialAnim )
 	{//we did dismemberment and our death anim is okay to override
 		if ( hitLoc == HL_HAND_RT && self->locationDamage[hitLoc] >= Q3_INFINITE && cliff_fall != 2 && self->client->ps.groundEntityNum != ENTITYNUM_NONE )
