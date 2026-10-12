@@ -60,6 +60,7 @@ extern qboolean PM_LockedAnim( int anim );
 
 extern cvar_t	*g_dismemberment;
 extern cvar_t	*g_saberRealisticCombat;
+extern cvar_t	*g_dismemberRealistic;
 extern cvar_t	*g_corpseRemovalTime;
 extern cvar_t	*debug_subdivision;
 
@@ -116,7 +117,7 @@ void CorpsePhysics( gentity_t *self )
 
 	if ( level.time - self->s.time > 3000 )
 	{//been dead for 3 seconds
-		if ( !debug_subdivision->integer && !g_saberRealisticCombat->integer )
+		if ( !debug_subdivision->integer && !g_saberRealisticCombat->integer && !g_dismemberRealistic->integer )
 		{//can't be dismembered once dead
 			if ( self->client->NPC_class != CLASS_PROTOCOL )
 			{
