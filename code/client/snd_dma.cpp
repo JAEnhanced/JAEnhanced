@@ -191,6 +191,7 @@ cvar_t *s_show;
 cvar_t *s_testsound;
 cvar_t *s_volume;
 cvar_t *s_volumeVoice;
+cvar_t *snd_mute_losefocus;
 
 typedef struct
 {
@@ -496,6 +497,7 @@ void S_Init( void ) {
 	s_testsound         = Cvar_Get( "s_testsound",         "0",       CVAR_CHEAT );
 	s_volume            = Cvar_Get( "s_volume",            "0.5",     CVAR_ARCHIVE );
 	s_volumeVoice       = Cvar_Get( "s_volumeVoice",       "1.0",     CVAR_ARCHIVE );
+	snd_mute_losefocus  = Cvar_Get( "snd_mute_losefocus",  "1",       CVAR_ARCHIVE );
 
 	MP3_InitCvars();
 
@@ -1569,6 +1571,11 @@ void S_StartSound(const vec3_t origin, int entityNum, soundChannel_t entchannel,
 	/*const*/ sfx_t *sfx;
 
 	if ( !s_soundStarted || s_soundMuted ) {
+		return;
+	}
+
+	// Sounds started while muted would all play at once when the window comes back.
+	if ( (com_minimized->integer || com_unfocused->integer) && snd_mute_losefocus->integer ) {
 		return;
 	}
 
