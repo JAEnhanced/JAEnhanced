@@ -502,7 +502,7 @@ static cvarTable_t cvarTable[] = {
 	{ &cg_SFXSabersGlowSize,	"cg_SFXSabersGlowSize",	"1.0", CVAR_ARCHIVE },
 	{ &cg_SFXSabersCoreSize,	"cg_SFXSabersCoreSize",	"1.0", CVAR_ARCHIVE },
 
-	{ &cg_ignitionFlare,	"cg_ignitionFlare",	"1", CVAR_ARCHIVE },
+	{ &cg_ignitionFlare,	"cg_ignitionFlare",	"0", CVAR_ARCHIVE },
     { &cg_ignitionSpeed,	"cg_ignitionSpeed",	"1.0", CVAR_ARCHIVE },
 	
     { &cg_ignitionSpeed,	"cg_ignitionSpeed",	"1.0", CVAR_ARCHIVE },
@@ -524,8 +524,8 @@ static cvarTable_t cvarTable[] = {
 	{ &cg_truemoveroll,	"cg_truemoveroll",	"0", CVAR_ARCHIVE },
 	{ &cg_truesaberonly,	"cg_truesaberonly",	"0", CVAR_ARCHIVE },
 	{ &cg_trueeyeposition,	"cg_trueeyeposition",	"0.0", 0},
-	{ &cg_trueinvertsaber,	"cg_trueinvertsaber",	"0", CVAR_ARCHIVE},
-	{ &cg_truefov,	"cg_truefov",	"80", CVAR_ARCHIVE},
+	{ &cg_trueinvertsaber,	"cg_trueinvertsaber",	"1", CVAR_ARCHIVE},
+	{ &cg_truefov,	"cg_truefov",	"110", CVAR_ARCHIVE},
     { &cg_truebobbing,	"cg_truebobbing",	"1", CVAR_ARCHIVE},
 
 	{ &r_ratioFix, "r_ratioFix", "", 0},
