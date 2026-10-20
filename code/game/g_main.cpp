@@ -200,6 +200,7 @@ cvar_t	*g_debugMelee;
 cvar_t	*g_saberRestrictForce;
 cvar_t	*g_saberPickuppableDroppedSabers;
 cvar_t	*g_dismemberProbabilities;
+cvar_t	*g_dismemberRealistic;
 
 cvar_t	*g_speederControlScheme;
 
@@ -712,6 +713,7 @@ void G_InitCvars( void ) {
 	g_saberRealisticCombat = gi.cvar( "g_saberMoreRealistic", "0", CVAR_ARCHIVE );//makes collision more precise, increases damage
 	debug_subdivision = gi.cvar( "debug_subdivision", "0", CVAR_ARCHIVE );//debug for dismemberment
 	g_dismemberProbabilities = gi.cvar ( "g_dismemberProbabilities", "1", CVAR_ARCHIVE );//0 = ignore probabilities, 1 = use probabilities
+	g_dismemberRealistic = gi.cvar ( "g_dismemberRealistic", "0", CVAR_ARCHIVE );//1 = any saber kill can dismember where it hit, 2 = corpses too; g_dismemberProbabilities becomes a percent chance (the default of 1 is 1%, so set it too), damage unchanged
 	g_saberDamageCapping = gi.cvar( "g_saberDamageCapping", "1", CVAR_CHEAT );//caps damage of sabers vs players and NPC who use sabers
 	g_saberMoveSpeed = gi.cvar( "g_saberMoveSpeed", "1", CVAR_CHEAT );//how fast you run while attacking with a saber
 	g_saberAnimSpeed = gi.cvar( "g_saberAnimSpeed", "1", CVAR_CHEAT );//how fast saber animations run
