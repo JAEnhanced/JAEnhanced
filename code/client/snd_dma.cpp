@@ -46,6 +46,94 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "sys/sys_loadlib.h"
 #endif
 
+#ifdef USE_OPENAL32_DLL
+#include <delayimp.h>
+
+// 32-bit MSVC builds delay-load OpenAL Soft (see code/CMakeLists.txt), so
+// s_UseOpenAL32DLL can swap in the OpenAL32.dll shipped with Jedi Academy
+#define OPENAL_SOFT_DLL "OpenALSoft.x86.dll"
+
+cvar_t			*s_UseOpenAL32DLL;			// Use OpenAL32.dll instead of OpenAL Soft
+static HMODULE	s_hOpenALInst;				// DLL loaded by S_AL_LoadDLL, waiting to be bound
+static int		s_OpenAL32DLLLoaded = -1;	// s_UseOpenAL32DLL when OpenAL was loaded, -1 if not loaded
+
+/*
+	Load the OpenAL DLL before the first OpenAL call, so a missing DLL falls
+	back to the software mixer instead of raising a delay-load exception
+*/
+static qboolean S_AL_LoadDLL(void)
+{
+	const int useOpenAL32DLL = !!s_UseOpenAL32DLL->integer;
+	if (s_OpenAL32DLLLoaded == useOpenAL32DLL)
+	{
+		return qtrue;
+	}
+
+	// Unloading resets the delay-loaded imports, so the next OpenAL call
+	// binds the DLL that s_UseOpenAL32DLL now selects
+	if (s_OpenAL32DLLLoaded != -1)
+	{
+		__FUnloadDelayLoadedDLL2(OPENAL_SOFT_DLL);
+		s_OpenAL32DLLLoaded = -1;
+	}
+
+	HMODULE hOpenAL = NULL;
+	if (useOpenAL32DLL)
+	{
+		hOpenAL = LoadLibraryA("OpenAL32.dll");
+		if (hOpenAL)
+			Com_Printf("Using OpenAL32.dll\n");
+		else
+			Com_Printf(S_COLOR_YELLOW "WARNING: Failed to load OpenAL32.dll, using OpenAL Soft\n");
+	}
+	if (!hOpenAL)
+	{
+		hOpenAL = LoadLibraryA(OPENAL_SOFT_DLL);
+	}
+	if (!hOpenAL)
+	{
+		Com_Printf(S_COLOR_YELLOW "WARNING: Failed to load " OPENAL_SOFT_DLL ", using the software mixer\n");
+		return qfalse;
+	}
+
+	s_hOpenALInst = hOpenAL;
+	s_OpenAL32DLLLoaded = useOpenAL32DLL;
+	return qtrue;
+}
+
+static int __cdecl S_AL_MissingFunction(void)
+{
+	return 0;
+}
+
+static FARPROC WINAPI S_AL_DelayLoadHook(unsigned dliNotify, PDelayLoadInfo pdli)
+{
+	if (Q_stricmp(pdli->szDll, OPENAL_SOFT_DLL))
+	{
+		return NULL;
+	}
+
+	if (dliNotify == dliNotePreLoadLibrary)
+	{
+		// Hand over the DLL S_AL_LoadDLL picked; the delay-load helper now owns it
+		HMODULE hOpenAL = s_hOpenALInst;
+		s_hOpenALInst = NULL;
+		return (FARPROC)hOpenAL;
+	}
+	else if (dliNotify == dliFailGetProc)
+	{
+		// Old OpenAL32.dll builds may lack newer exports; fail the call instead of crashing
+		if (pdli->dlp.fImportByName)
+			Com_Printf(S_COLOR_YELLOW "WARNING: OpenAL function %s not found\n", pdli->dlp.szProcName);
+		return (FARPROC)S_AL_MissingFunction;
+	}
+	return NULL;
+}
+
+extern "C" const PfnDliHook __pfnDliNotifyHook2 = S_AL_DelayLoadHook;
+extern "C" const PfnDliHook __pfnDliFailureHook2 = S_AL_DelayLoadHook;
+#endif
+
 static void S_Play_f(void);
 static void S_SoundList_f(void);
 static void S_Music_f(void);
@@ -305,6 +393,7 @@ long					s_lLastEnvUpdate;		// Time of last EAX update
 long					s_lNumEnvironments;		// Number of environment zones
 long					s_NumFXSlots;			// Number of EAX 4.0 FX Slots
 FXSLOTINFO				s_FXSlotInfo[EAX_MAX_FXSLOTS];	// Stores information about the EAX 4.0 FX Slots
+qboolean				s_bALLinearDistance;	// Linear distance model emulates the software mixer's fall-off
 
 static void InitEAXManager();
 static void ReleaseEAXManager();
@@ -317,7 +406,8 @@ float CalcDistance(EMPOINT A, EMPOINT B);
 
 static void S_AL_SetSourceAttenuation(ALuint source, qboolean reducedAttenuation)
 {
-	if (s_bEAX)
+	// EAX and OpenAL 1.0 DLLs use the inverse distance model with retail distances
+	if (!s_bALLinearDistance)
 	{
 		alSourcef(source, AL_REFERENCE_DISTANCE, reducedAttenuation ? EAX_VOICE_REF_DISTANCE : EAX_REF_DISTANCE);
 	}
@@ -533,6 +623,14 @@ void S_Init( void ) {
 #ifdef USE_EAXMAN_DLL
 	s_UseEAXManDLL = Cvar_Get("s_UseEAXManDLL", "0", CVAR_ARCHIVE|CVAR_LATCH);
 #endif
+#ifdef USE_OPENAL32_DLL
+	s_UseOpenAL32DLL = Cvar_Get("s_UseOpenAL32DLL", "0", CVAR_ARCHIVE|CVAR_LATCH);
+
+	if (s_UseOpenAL && !S_AL_LoadDLL())
+	{
+		s_UseOpenAL = 0;
+	}
+#endif
 
 	if (s_UseOpenAL)
 	{
@@ -580,7 +678,19 @@ void S_Init( void ) {
 		alListenerfv(AL_ORIENTATION,listenerOri);
 
 		InitEAXManager();
+
+		// OpenAL 1.0 DLLs such as Jedi Academy's OpenAL32.dll reject the linear
+		// distance model. Read the error here, or source allocation below sees
+		// it and stops before creating any channels.
+		alGetError();
 		alDistanceModel(s_bEAX ? AL_INVERSE_DISTANCE_CLAMPED : AL_LINEAR_DISTANCE_CLAMPED);
+		s_bALLinearDistance = (alGetError() == AL_NO_ERROR && !s_bEAX) ? qtrue : qfalse;
+		if (!s_bEAX && !s_bALLinearDistance)
+		{
+			Com_Printf(S_COLOR_YELLOW "WARNING: OpenAL linear distance model unavailable, using inverse distance\n");
+			alDistanceModel(AL_INVERSE_DISTANCE_CLAMPED);
+			alGetError();
+		}
 
 		memset(s_channels, 0, sizeof(s_channels));
 
