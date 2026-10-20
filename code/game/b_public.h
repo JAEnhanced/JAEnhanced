@@ -26,6 +26,10 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "bstate.h"
 #include "ai.h"
 
+//Force Blinding: while NPC->blindTime is active, FireWeapon scatters the NPC's shot direction by up to this
+//many degrees per axis (pitch/yaw) so it fires wildly - works for every weapon and NPC class.  Tunable.
+#define BLIND_FIRE_SPREAD		67.0f
+
 #define NPCAI_CHECK_WEAPON		0x00000001
 #define NPCAI_BURST_WEAPON		0x00000002
 #define NPCAI_MOVING			0x00000004
@@ -375,6 +379,7 @@ public:
 	
 	int			insanityTime;	//Insanity!
 	int			darkCharmedTime;	//Charmed to enemy team (dark version)
+	int			blindTime;		//Force Blinding: after the initial stun, NPC keeps fighting but aims wildly (not saved - transient)
 
 	//Lagging enemy position - FIXME: seems awful wasteful...
 	vec3_t		enemyLaggedPos[ENEMY_POS_LAG_STEPS];
