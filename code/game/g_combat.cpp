@@ -2353,7 +2353,7 @@ qboolean G_GetRootSurfNameWithVariant( gentity_t *ent, const char *rootSurfName,
 // With g_dismemberRealistic, a killing saber hit that doesn't count as a dismembering
 // hit still cuts where the blade hit, and g_dismemberProbabilities is the percent chance
 // of a cut (0 = always) instead of a scale on the NPC's own probabilities. The damage
-// itself keeps using the normal hitLoc.
+// itself keeps using the normal hitLoc. Corpses are only cut this way with g_dismemberRealistic 2.
 static int G_DismemberLoc( int hitLoc, int meansOfDeath )
 {
 	if ( !g_dismemberRealistic->integer || meansOfDeath != MOD_SABER )
@@ -3679,8 +3679,8 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 		{
 			anim = G_PickDeathAnim( self, self->pos1, damage, meansOfDeath, hitLoc );
 			if ( dflags & DAMAGE_DISMEMBER )
-			{
-				G_DoDismemberment( self, self->pos1, meansOfDeath, damage, G_DismemberLoc( hitLoc, meansOfDeath ) );
+			{//g_dismemberRealistic 1 only cuts where it hit on the kill, corpses use the normal rules
+				G_DoDismemberment( self, self->pos1, meansOfDeath, damage, g_dismemberRealistic->integer > 1 ? G_DismemberLoc( hitLoc, meansOfDeath ) : hitLoc );
 			}
 			if ( anim >= 0 )
 			{
