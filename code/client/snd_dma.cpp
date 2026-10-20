@@ -40,6 +40,12 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include <windows.h>
 #endif
 
+// Creative's EAXMan.dll is 32-bit only; s_UseEAXManDLL picks it over EalMan.
+#if defined(USE_OPENAL) && defined(_WIN32) && !defined(_WIN64)
+#define USE_EAXMAN_DLL
+#include "sys/sys_loadlib.h"
+#endif
+
 static void S_Play_f(void);
 static void S_SoundList_f(void);
 static void S_Music_f(void);
@@ -287,6 +293,10 @@ bool					s_bEALFileLoaded;		// Has an .eal file been loaded for the current leve
 bool					s_bInWater;				// Underwater effect currently active
 int						s_EnvironmentID;		// EAGLE ID of current environment
 LPEAXMANAGER			s_lpEAXManager;			// Pointer to EAXManager object
+#ifdef USE_EAXMAN_DLL
+cvar_t					*s_UseEAXManDLL;		// Use Creative's EAXMan.dll instead of EalMan
+void					*s_hEAXManInst;			// Handle of EAXManager DLL
+#endif
 EAXSet					s_eaxSet;				// EAXSet() function
 EAXGet					s_eaxGet;				// EAXGet() function
 EAXREVERBPROPERTIES		s_eaxLPCur;				// Current EAX Parameters
@@ -520,6 +530,9 @@ void S_Init( void ) {
 #ifdef USE_OPENAL
 	cvar_t *cv = Cvar_Get("s_UseOpenAL" , "0",CVAR_ARCHIVE|CVAR_LATCH);
 	s_UseOpenAL = !!(cv->integer);
+#ifdef USE_EAXMAN_DLL
+	s_UseEAXManDLL = Cvar_Get("s_UseEAXManDLL", "0", CVAR_ARCHIVE|CVAR_LATCH);
+#endif
 
 	if (s_UseOpenAL)
 	{
@@ -5349,6 +5362,41 @@ qboolean SND_RegisterAudio_LevelLoadEnd(qboolean bDeleteEverythingNotUsedThisLev
 *
 \****************************************************************************************************/
 
+#ifdef USE_OPENAL
+/*
+	Create the EAX Manager: Creative's EAXMan.dll when s_UseEAXManDLL is set,
+	otherwise (or if the DLL can't be used) EalMan
+*/
+static HRESULT CreateEAXManager(LPEAXMANAGER *lpEAXManager)
+{
+#ifdef USE_EAXMAN_DLL
+	if (s_UseEAXManDLL->integer)
+	{
+		s_hEAXManInst = Sys_LoadLibrary("EAXMan.dll");
+		if (s_hEAXManInst)
+		{
+			LPEAXMANAGERCREATE lpEAXManagerCreateFn = (LPEAXMANAGERCREATE)Sys_LoadFunction(s_hEAXManInst, "EaxManagerCreate");
+			if (lpEAXManagerCreateFn && lpEAXManagerCreateFn(lpEAXManager)==EM_OK)
+			{
+				Com_Printf("Using EAXMan.dll EAX Manager\n");
+				return EM_OK;
+			}
+			Sys_UnloadLibrary(s_hEAXManInst);
+			s_hEAXManInst = NULL;
+		}
+		Com_Printf(S_COLOR_YELLOW "WARNING: Failed to load EAXMan.dll, using EalMan\n");
+	}
+#endif
+
+	HRESULT hr = EaxManagerCreate(lpEAXManager);
+	if (hr == EM_OK)
+	{
+		Com_Printf("Using EalMan EAX Manager\n");
+	}
+	return hr;
+}
+#endif
+
 /*
 	Initialize the EAX Manager
 */
@@ -5392,10 +5440,8 @@ void InitEAXManager()
 	// If we have detected EAX support, initialize the EAX Manager.
 	if (s_bEAX)
 	{
-		if (EaxManagerCreate(&s_lpEAXManager)==EM_OK)
+		if (CreateEAXManager(&s_lpEAXManager)==EM_OK)
 		{
-			Com_Printf("Using EalMan EAX Manager\n");
-
 			// Configure our EAX 4.0 Effect Slots
 			s_NumFXSlots = 0;
 			for (i = 0; i < EAX_MAX_FXSLOTS; i++)
@@ -5468,6 +5514,13 @@ void ReleaseEAXManager()
 		s_lpEAXManager->Release();
 		s_lpEAXManager = NULL;
 	}
+#ifdef USE_EAXMAN_DLL
+	if (s_hEAXManInst)
+	{
+		Sys_UnloadLibrary(s_hEAXManInst);
+		s_hEAXManInst = NULL;
+	}
+#endif
 #endif
 }
 
