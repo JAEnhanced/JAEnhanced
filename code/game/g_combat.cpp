@@ -4659,11 +4659,12 @@ extern void RunEmplacedWeapon( gentity_t *ent, usercmd_t **ucmd );
 	}
 
 	//do any dismemberment if there's any to do...
+	int dismemberLoc = (dflags&DAMAGE_DISMEMBER) ? G_DismemberLoc( hitLoc, meansOfDeath ) : HL_NONE;
 	if ( (dflags&DAMAGE_DISMEMBER)
-		&& G_DoDismemberment( self, self->pos1, meansOfDeath, damage, G_DismemberLoc( hitLoc, meansOfDeath ) )
+		&& G_DoDismemberment( self, self->pos1, meansOfDeath, damage, dismemberLoc )
 		&& !specialAnim )
 	{//we did dismemberment and our death anim is okay to override
-		if ( hitLoc == HL_HAND_RT && self->locationDamage[hitLoc] >= Q3_INFINITE && cliff_fall != 2 && self->client->ps.groundEntityNum != ENTITYNUM_NONE )
+		if ( dismemberLoc == HL_HAND_RT && self->locationDamage[dismemberLoc] >= Q3_INFINITE && cliff_fall != 2 && self->client->ps.groundEntityNum != ENTITYNUM_NONE )
 		{//just lost our right hand and we're on the ground, use the special anim
 			NPC_SetAnim( self, SETANIM_BOTH, BOTH_RIGHTHANDCHOPPEDOFF, SETANIM_FLAG_OVERRIDE|SETANIM_FLAG_HOLD );
 		}

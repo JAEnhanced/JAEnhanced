@@ -1879,7 +1879,7 @@ qboolean WP_SaberApplyDamage( gentity_t *ent, float baseDamage, int baseDFlags,
 						{
 							damage = ceil(totalDmg[i]);
 						}
-						saberDismemberLoc = ( g_dismemberRealistic->integer && hitDismemberLoc[i] == HL_NONE ) ? hitLoc[i] : HL_NONE;
+						saberDismemberLoc = hitLoc[i];
 						G_Damage( victim, inflictor, ent, dmgDir[i], dmgSpot[i], damage, dFlags, MOD_SABER, hitDismemberLoc[i] );
 						saberDismemberLoc = HL_NONE;
 						if ( damage > 0 && cg.time )
