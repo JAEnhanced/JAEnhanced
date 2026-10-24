@@ -500,7 +500,7 @@ static cvarTable_t cvarTable[] = {
 	
 	{ &cg_SFXSabers,	"cg_SFXSabers",	"1", CVAR_ARCHIVE },
 	{ &cg_SFXSabersGlowSize,	"cg_SFXSabersGlowSize",	"1.0", CVAR_ARCHIVE },
-	{ &cg_SFXSabersCoreSize,	"cg_SFXSabersCoreSize",	"1.0", CVAR_ARCHIVE },
+	{ &cg_SFXSabersCoreSize,	"cg_SFXSabersCoreSize",	"0.75", CVAR_ARCHIVE },
 
 	{ &cg_ignitionFlare,	"cg_ignitionFlare",	"1", CVAR_ARCHIVE },
     { &cg_ignitionSpeed,	"cg_ignitionSpeed",	"1.0", CVAR_ARCHIVE },
