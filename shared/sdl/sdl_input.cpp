@@ -40,6 +40,9 @@ static cvar_t *in_joystickThreshold = NULL;
 static cvar_t *in_joystickNo        = NULL;
 static cvar_t *in_joystickUseAnalog = NULL;
 
+extern cvar_t *snd_mute_losefocus;
+static qboolean soundDeactivated    = qfalse;
+
 static SDL_Window *SDL_window = NULL;
 
 #define CTRL(a) ((a)-'a'+1)
@@ -926,14 +929,22 @@ static void IN_ProcessEvents( void )
 					case SDL_WINDOWEVENT_FOCUS_LOST:
 					{
 						Cvar_SetValue( "com_unfocused", 1 );
-						SNDDMA_Activate( qfalse );
+						if ( snd_mute_losefocus && snd_mute_losefocus->integer )
+						{
+							SNDDMA_Activate( qfalse );
+							soundDeactivated = qtrue;
+						}
 						break;
 					}
 
 					case SDL_WINDOWEVENT_FOCUS_GAINED:
 					{
 						Cvar_SetValue( "com_unfocused", 0 );
-						SNDDMA_Activate( qtrue );
+						if ( soundDeactivated )
+						{
+							SNDDMA_Activate( qtrue );
+							soundDeactivated = qfalse;
+						}
 						break;
 					}
 				}

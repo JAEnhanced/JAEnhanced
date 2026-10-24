@@ -121,12 +121,12 @@ jobs:
             sudo dpkg --add-architecture i386
             sudo apt-get -qq update
             sudo apt-get -y install aptitude
-            sudo apt-get -y install gcc-multilib g++-multilib ninja-build
+            sudo apt-get -y install gcc-12 g++-12 gcc-12-multilib g++-12-multilib ninja-build
             sudo apt-get -y install --allow-downgrades libpcre2-8-0:i386 libjpeg-dev:i386 libpng-dev:i386 libcurl4-openssl-dev:i386
-            sudo aptitude -y install libglib2.0-dev:i386 libsdl2-dev:i386
+            sudo aptitude -y install libglib2.0-dev:i386 libsdl2-dev:i386 libasound2-dev:i386 libpulse-dev:i386 libpipewire-0.3-dev:i386
           else
             sudo apt-get -qq update
-            sudo apt-get install libjpeg-dev libpng-dev zlib1g-dev libsdl2-dev
+            sudo apt-get install gcc-12 g++-12 libjpeg-dev libpng-dev zlib1g-dev libsdl2-dev libasound2-dev libpulse-dev libpipewire-0.3-dev
           fi
           cmake -E make_directory ${{ github.workspace }}/build
 
@@ -134,7 +134,7 @@ jobs:
         shell: bash
         working-directory: ${{ github.workspace }}/build
         run: |
-          OPTIONS="-DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/install"
+          OPTIONS="-DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/install -DCMAKE_C_COMPILER=gcc-12 -DCMAKE_CXX_COMPILER=g++-12 -DUseInternalOpenAL=ON"
           if [ "${{ matrix.portable }}" == "Portable" ]; then
             OPTIONS+=" -DUseInternalLibs=ON -DBuildPortableVersion=ON"
           else
@@ -214,7 +214,7 @@ jobs:
         shell: bash
         working-directory: ${{ github.workspace }}/build
         run: |
-          OPTIONS="-DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/install"
+          OPTIONS="-DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/install -DUseInternalOpenAL=ON"
           if [ "${{ matrix.portable }}" == "Portable" ]; then
             OPTIONS+=" -DUseInternalLibs=ON -DBuildPortableVersion=ON"
           else
