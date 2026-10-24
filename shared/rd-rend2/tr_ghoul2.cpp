@@ -826,6 +826,7 @@ public:
 	shader_t		*gore_shader;
 	CGoreSet		*gore_set;
 #endif
+	g2Tints_t		tintType;
 
 	CRenderSurface(
 		int				initsurfaceNum,
@@ -861,6 +862,7 @@ public:
 		, gore_shader(initgore_shader)
 		, gore_set(initgore_set)
 #endif
+		, tintType(G2_TINT_DEFAULT)
 	{
 	}
 };
@@ -2456,6 +2458,7 @@ void RenderSurfaces( CRenderSurface &RS, const trRefEntity_t *ent, int entityNum
 			newSurf->surfaceData = surface;
 			newSurf->boneCache = RS.boneCache;
 			newSurf->dlightBits = dlightBits;
+			newSurf->tintType = RS.tintType;
 
 			// render shadows?
 			if (r_shadows->integer == 2
@@ -3357,6 +3360,7 @@ void R_AddGhoulSurfaces( trRefEntity_t *ent, int entityNum )
 		{
 			RS.renderfx |= RF_NOSHADOW;
 		}
+		RS.tintType = g2Info.tintType;
 
 		RenderSurfaces(RS, ent, entityNum);
 	}
@@ -3660,6 +3664,8 @@ void RB_FillBoneBlock(CRenderableSurface *surf, mat3x4_t *outMatrices)
 void RB_SurfaceGhoul( CRenderableSurface *surf )
 {
 	mdxmVBOMesh_t *surface = surf->vboMesh;
+
+	tess.tintType = surf->tintType;
 
 	if ( surface->vbo == NULL || surface->ibo == NULL )
 	{

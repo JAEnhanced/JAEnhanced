@@ -957,7 +957,7 @@ levelshots are specialized 256*256 thumbnails for
 the menu system, sampled down from full screen distorted images
 ====================
 */
-#define LEVELSHOTSIZE 256
+#define LEVELSHOTSIZE 2048
 static void R_LevelShot( void ) {
 	char		checkname[MAX_OSPATH];
 	byte		*buffer;
@@ -1742,6 +1742,8 @@ void R_Register( void )
 		ri.Cvar_Set("r_modelpoolmegs", "0");
 	}
 	r_environmentMapping = ri.Cvar_Get("r_environmentMapping", "1", CVAR_ARCHIVE_ND);
+	// read by cgame, ui and the cinematic code for the widescreen HUD fix
+	ri.Cvar_Get("r_ratioFix", "1", CVAR_ARCHIVE);
 
 	for ( size_t i = 0; i < numCommands; i++ )
 		ri.Cmd_AddCommand( commands[i].cmd, commands[i].func );

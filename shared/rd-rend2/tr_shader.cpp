@@ -1829,6 +1829,29 @@ static qboolean ParseStage( shaderStage_t *stage, const char **text )
 			else if ( !Q_stricmp( token, "entity" ) )
 			{
 				stage->rgbGen = CGEN_ENTITY;
+				// optional slot into refEntity newShaderRGBA
+				token = COM_ParseExt( text, qfalse );
+				if ( token[0] )
+				{
+					stage->rgbGenUseNewEnt = qtrue;
+					stage->rgbGenEntIndex = atoi( token );
+					if ( stage->rgbGenEntIndex < 0 || stage->rgbGenEntIndex >= MAX_NEW_ENT_RGB )
+					{
+						stage->rgbGenEntIndex = MAX_NEW_ENT_RGB - 1;
+					}
+				}
+			}
+			else if ( !Q_stricmp( token, "hilt" ) )
+			{
+				stage->rgbGen = CGEN_ENTITY;
+				stage->rgbGenUseNewEnt = qtrue;
+				stage->rgbGenEntIndex = TINT_HILT1;
+			}
+			else if ( !Q_stricmp( token, "blade" ) )
+			{
+				stage->rgbGen = CGEN_ENTITY;
+				stage->rgbGenUseNewEnt = qtrue;
+				stage->rgbGenEntIndex = TINT_BLADE1;
 			}
 			else if ( !Q_stricmp( token, "oneMinusEntity" ) )
 			{
@@ -1867,6 +1890,37 @@ static qboolean ParseStage( shaderStage_t *stage, const char **text )
 					Com_Printf( S_COLOR_RED "ERROR: rgbGen lightingDiffuseEntity used on a misc_model! in shader '%s'\n", shader.name );
 				}
 				stage->rgbGen = CGEN_LIGHTING_DIFFUSE_ENTITY;
+				// optional slot into refEntity newShaderRGBA
+				token = COM_ParseExt( text, qfalse );
+				if ( token[0] )
+				{
+					stage->rgbGenUseNewEnt = qtrue;
+					stage->rgbGenEntIndex = atoi( token );
+					if ( stage->rgbGenEntIndex < 0 || stage->rgbGenEntIndex >= MAX_NEW_ENT_RGB )
+					{
+						stage->rgbGenEntIndex = MAX_NEW_ENT_RGB - 1;
+					}
+				}
+			}
+			else if ( !Q_stricmp( token, "lightingDiffuseHilt" ) )
+			{
+				if (shader.lightmapIndex[0] != LIGHTMAP_NONE)
+				{
+					Com_Printf( S_COLOR_RED "ERROR: rgbGen lightingDiffuseHilt used on a misc_model! in shader '%s'\n", shader.name );
+				}
+				stage->rgbGen = CGEN_LIGHTING_DIFFUSE_ENTITY;
+				stage->rgbGenUseNewEnt = qtrue;
+				stage->rgbGenEntIndex = TINT_HILT1;
+			}
+			else if ( !Q_stricmp( token, "lightingDiffuseBlade" ) )
+			{
+				if (shader.lightmapIndex[0] != LIGHTMAP_NONE)
+				{
+					Com_Printf( S_COLOR_RED "ERROR: rgbGen lightingDiffuseBlade used on a misc_model! in shader '%s'\n", shader.name );
+				}
+				stage->rgbGen = CGEN_LIGHTING_DIFFUSE_ENTITY;
+				stage->rgbGenUseNewEnt = qtrue;
+				stage->rgbGenEntIndex = TINT_BLADE1;
 			}
 			else if ( !Q_stricmp( token, "oneMinusVertex" ) )
 			{

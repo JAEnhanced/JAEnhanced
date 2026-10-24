@@ -955,6 +955,8 @@ typedef struct {
 
 	waveForm_t		rgbWave;
 	colorGen_t		rgbGen;
+	qboolean		rgbGenUseNewEnt;			// rgbGen entity N / hilt / blade reads refEntity newShaderRGBA
+	int				rgbGenEntIndex;				// slot in newShaderRGBA
 
 	waveForm_t		alphaWave;
 	alphaGen_t		alphaGen;
@@ -3187,6 +3189,7 @@ struct shaderCommands_s
 	int			fogNum;
 	int         cubemapIndex;
 	bool		entityMergable;
+	g2Tints_t	tintType;	// saber tint slot of the ghoul2 model being tessellated
 #ifdef REND2_SP_GORE
 	bool		scale;		// uses texCoords[input->firstIndex] for storage
 	bool		fade;		// uses svars.colors[input->firstIndex] for storage
@@ -3505,6 +3508,9 @@ public:
 	int dlightBits;
 	int pshadowBits;
 
+	// which saber tint slot rgbGen hilt / blade stages read
+	g2Tints_t tintType;
+
 	// pointer to surface data loaded into file - only used by client renderer
 	// DO NOT USE IN GAME SIDE - if there is a vid restart this will be out of
 	// wack on the game
@@ -3527,6 +3533,7 @@ public:
 	{
 		ident = src.ident;
 		boneCache = src.boneCache;
+		tintType = src.tintType;
 		surfaceData = src.surfaceData;
 #ifdef _G2_GORE
 		alternateTex = src.alternateTex;
@@ -3544,6 +3551,7 @@ public:
 		, genShadows(qfalse)
 		, dlightBits(0)
 		, pshadowBits(0)
+		, tintType(G2_TINT_DEFAULT)
 		, surfaceData(nullptr)
 #ifdef _G2_GORE
 		, alternateTex(nullptr)
@@ -3559,6 +3567,7 @@ public:
 	{
 		ident = SF_MDX;
 		boneCache = nullptr;
+		tintType = G2_TINT_DEFAULT;
 		surfaceData = nullptr;
 #ifdef _G2_GORE
 		alternateTex = nullptr;
