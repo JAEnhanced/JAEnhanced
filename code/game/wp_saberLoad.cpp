@@ -152,6 +152,7 @@ stringID_table_t HolsterTable[] =
 	ENUM2STRING(HOLSTER_LHIP),
 	{ "none", HOLSTER_NONE },
 	{ "hips", HOLSTER_HIPS },
+	{ "rhip", HOLSTER_HIPS },
 	{ "back", HOLSTER_BACK },
 	{ "lhip", HOLSTER_LHIP },
 	{ "",	-1 }
@@ -2301,8 +2302,8 @@ qboolean WP_SaberParseParms( const char *SaberName, saberInfo_t *saber, qboolean
 			saber->holsterPlace = HOLSTER_BACK;
 		}
 		else
-		{
-			saber->holsterPlace = HOLSTER_HIPS;
+		{//offhand hip, so the saber hand can draw it
+			saber->holsterPlace = HOLSTER_LHIP;
 		}
 	}
 	return qtrue;
