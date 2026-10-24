@@ -9343,20 +9343,8 @@ void PM_SetSaberMove(saberMoveName_t newMove)
 			pm->ps->saberMove = newMove;
 			return;
 		}
-		if ( pm->ps->saber[0].holsterPlace == HOLSTER_LHIP && !pm->ps->dualSabers && pm->ps->saber[0].drawAnim == -1 )
-		{
-			//TODO: left hip draw anim
-		}
-		else if ( pm->ps->saber[0].holsterPlace == HOLSTER_LHIP
-				 && pm->ps->dualSabers
-				 && ((pm->ps->saber[1].holsterPlace == HOLSTER_LHIP) || (pm->ps->saber[1].holsterPlace == HOLSTER_HIPS))
-				 && !(pm->ps->saber[0].stylesForbidden&(1<<SS_DUAL))
-				 && !(pm->ps->saber[1].stylesForbidden&(1<<SS_DUAL)) )
-		{
-			anim = BOTH_S1_S6;
-			//TODO: nice cross draw anim
-		}
-		else if ( pm->ps->saber[0].drawAnim != -1 )
+		//TODO: left hip draw anim for a single saber, nice cross draw anim for dual sabers
+		if ( pm->ps->saber[0].drawAnim != -1 )
 		{
 			anim = pm->ps->saber[0].drawAnim;
 		}
@@ -9387,21 +9375,8 @@ void PM_SetSaberMove(saberMoveName_t newMove)
 	}
 	else if ( newMove == LS_PUTAWAY )
 	{
-		if ( pm->ps->saber[0].holsterPlace == HOLSTER_LHIP && !pm->ps->dualSabers && pm->ps->saber[0].putawayAnim == -1 )
-		{
-			//TODO: left hip putaway anim
-		}
-		else if ( pm->ps->saber[0].holsterPlace == HOLSTER_LHIP
-				 && pm->ps->dualSabers
-				 && ((pm->ps->saber[1].holsterPlace == HOLSTER_LHIP) || (pm->ps->saber[1].holsterPlace == HOLSTER_HIPS))
-				 && !(pm->ps->saber[0].stylesForbidden&(1<<SS_DUAL))
-				 && !(pm->ps->saber[1].stylesForbidden&(1<<SS_DUAL))
-				 && pm->ps->saber[1].Active() )
-		{
-			anim = BOTH_S6_S1;
-			//TODO: nice cross putaway anim
-		}
-		else if ( pm->ps->saber[0].putawayAnim != -1 )
+		//TODO: left hip putaway anim for a single saber, nice cross putaway anim for dual sabers
+		if ( pm->ps->saber[0].putawayAnim != -1 )
 		{
 			anim = pm->ps->saber[0].putawayAnim;
 		}

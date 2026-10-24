@@ -594,6 +594,136 @@ void WP_SaberAddG2SaberModels( gentity_t *ent, int specificSaberNum )
 	}
 }
 
+#define MAX_HILT_BOUNDS		64
+#define HOLSTER_HILT_TOP	6.0f	//how far above the hip holster offset a hilt's top end hangs - about where the stock hilts' pommels are
+
+typedef struct
+{
+	char		model[MAX_QPATH];
+	qboolean	valid;
+	vec3_t		mins, maxs;
+} hiltBounds_t;
+
+static hiltBounds_t	hiltBounds[MAX_HILT_BOUNDS];
+static int			numHiltBounds;
+
+//bounds of the visible surfaces in a hilt's top LOD, ignoring tags and surfaces that are off
+static qboolean WP_SaberReadHiltBounds( const char *model, vec3_t mins, vec3_t maxs )
+{
+	byte *buf = NULL;
+	const long len = gi.FS_ReadFile( model, (void **)&buf );
+	if ( len <= 0 || !buf )
+	{
+		return qfalse;
+	}
+
+	qboolean found = qfalse;
+	const mdxmHeader_t *header = (const mdxmHeader_t *)buf;
+	ClearBounds( mins, maxs );
+	if ( len >= (long)sizeof( mdxmHeader_t )
+		&& header->ident == MDXM_IDENT
+		&& header->version == MDXM_VERSION
+		&& header->numLODs > 0
+		&& header->numSurfaces > 0
+		&& (long)( sizeof( mdxmHeader_t ) + header->numSurfaces * sizeof( mdxmHierarchyOffsets_t ) ) <= len
+		&& header->ofsLODs > 0
+		&& header->ofsLODs + (long)( sizeof( mdxmLOD_t ) + header->numSurfaces * sizeof( mdxmLODSurfOffset_t ) ) <= len )
+	{
+		const mdxmHierarchyOffsets_t *surfIndexes = (const mdxmHierarchyOffsets_t *)( buf + sizeof( mdxmHeader_t ) );
+		const byte *lodSurfOffsets = buf + header->ofsLODs + sizeof( mdxmLOD_t );
+		for ( int i = 0; i < header->numSurfaces; i++ )
+		{
+			const long surfOfs = ( lodSurfOffsets - buf ) + ( (const mdxmLODSurfOffset_t *)lodSurfOffsets )->offsets[i];
+			if ( surfOfs < 0 || surfOfs + (long)sizeof( mdxmSurface_t ) > len )
+			{
+				continue;
+			}
+			const mdxmSurface_t *surf = (const mdxmSurface_t *)( buf + surfOfs );
+			if ( surf->thisSurfaceIndex < 0 || surf->thisSurfaceIndex >= header->numSurfaces )
+			{
+				continue;
+			}
+			const long infoOfs = sizeof( mdxmHeader_t ) + surfIndexes->offsets[surf->thisSurfaceIndex];
+			if ( infoOfs < 0 || infoOfs + (long)sizeof( mdxmSurfHierarchy_t ) > len )
+			{
+				continue;
+			}
+			const mdxmSurfHierarchy_t *surfInfo = (const mdxmSurfHierarchy_t *)( buf + infoOfs );
+			if ( surfInfo->name[0] == '*' || ( surfInfo->flags & ( G2SURFACEFLAG_ISBOLT | G2SURFACEFLAG_OFF ) ) )
+			{
+				continue;
+			}
+			if ( surf->numVerts <= 0 || surf->ofsVerts < 0
+				|| surfOfs + surf->ofsVerts + (long)( surf->numVerts * sizeof( mdxmVertex_t ) ) > len )
+			{
+				continue;
+			}
+			const mdxmVertex_t *v = (const mdxmVertex_t *)( (const byte *)surf + surf->ofsVerts );
+			for ( int j = 0; j < surf->numVerts; j++ )
+			{
+				AddPointToBounds( v[j].vertCoords, mins, maxs );
+			}
+			found = qtrue;
+		}
+	}
+	gi.FS_FreeFile( buf );
+	return found;
+}
+
+static qboolean WP_SaberGetHiltBounds( const char *model, vec3_t mins, vec3_t maxs )
+{
+	int i;
+	for ( i = 0; i < numHiltBounds; i++ )
+	{
+		if ( !Q_stricmp( hiltBounds[i].model, model ) )
+		{
+			break;
+		}
+	}
+	if ( i == numHiltBounds )
+	{
+		if ( numHiltBounds == MAX_HILT_BOUNDS )
+		{//full, start over
+			numHiltBounds = i = 0;
+		}
+		Q_strncpyz( hiltBounds[i].model, model, sizeof( hiltBounds[i].model ) );
+		hiltBounds[i].valid = WP_SaberReadHiltBounds( model, hiltBounds[i].mins, hiltBounds[i].maxs );
+		numHiltBounds++;
+	}
+	VectorCopy( hiltBounds[i].mins, mins );
+	VectorCopy( hiltBounds[i].maxs, maxs );
+	return hiltBounds[i].valid;
+}
+
+//hilts don't agree on where their origin is, so without a *holsterorigin tag hang the hilt from the hip by its top end
+//and center it on the holster point, instead of hanging it from its origin
+static void WP_SaberFitHolsterOffset( const char *model, const vec3_t angles, vec3_t offset )
+{
+	vec3_t mins, maxs;
+	if ( !model || !WP_SaberGetHiltBounds( model, mins, maxs ) )
+	{
+		return;
+	}
+	//the same rotation G2API_SetBoneAnglesOffset makes for POSITIVE_X, NEGATIVE_Y, NEGATIVE_Z
+	const vec3_t boneAngles = { angles[PITCH], angles[ROLL], angles[YAW] };
+	vec3_t axis[3], center, halfSize, rotatedCenter;
+	AnglesToAxis( boneAngles, axis );
+	VectorAdd( mins, maxs, center );
+	VectorScale( center, 0.5f, center );
+	VectorSubtract( maxs, center, halfSize );
+	VectorClear( rotatedCenter );
+	float top = 0.0f;
+	for ( int i = 0; i < 3; i++ )
+	{
+		VectorMA( rotatedCenter, center[i], axis[i], rotatedCenter );
+		top += fabs( axis[i][2] ) * halfSize[i];
+	}
+	top += rotatedCenter[2];
+	offset[0] -= rotatedCenter[0];
+	offset[1] -= rotatedCenter[1];
+	offset[2] += HOLSTER_HILT_TOP - top;
+}
+
 void WP_SaberAddHolsteredG2SaberModels( gentity_t *ent, int specificSaberNum )
 {
 	int saberNum = 0, maxSaber = 1;
@@ -647,6 +777,7 @@ void WP_SaberAddHolsteredG2SaberModels( gentity_t *ent, int specificSaberNum )
 				angles[YAW] = 180.0f;
 			}
 			VectorSet(offset, 0.0f, -1.0f, -5.0f);
+			WP_SaberFitHolsterOffset( ent->client->ps.saber[saberNum].model, angles, offset );
 		}
 		else if ( holsterPlace == HOLSTER_BACK )
 		{

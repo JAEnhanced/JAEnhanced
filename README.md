@@ -16,7 +16,7 @@ It's based on OpenJK (so the code is released under the GPL and available at <ht
 -   **Ignition Flare -** A lightsaber ignition flare can be enabled in the console by setting **cg_ignitionFlare** to 1. A custom ignition flare can be specified for a lightsaber with "ignitionFlare <shader>" in the .sab file.
 -   **Ignition twirl animation disable -** If that little twirl of the saber that you do in SP when activating it bothered you, you can now disable it to be more like MP with **g_noIgniteTwirl 1**.
 -   **Disable idle animations** - Use the command **g_UseIdleAnims 0** to disable them. Very helpful when taking screenshots.
--   **Saber Holsters -** Lightsabers are now holstered on the belt when not in use. ~~A tag_holsterorigin can be added to a hilt for better placement. Adding "holsterPlace <none/hips/back/lhip>" in the .sab file specifies where a hilt will be holstered.~~ Currently broken, default is right hip for now.
+-   **Saber Holsters -** Lightsabers are now holstered on the belt when not in use. Hilts go on the left hip by default (a second saber goes on the right hip), and hang from the belt by their top end based on the hilt's size. A *holsterorigin tag can be added to a hilt for exact placement. Adding "holsterPlace <none/lhip/rhip/back>" in the .sab file specifies where a hilt will be holstered ("hips" still works as the old name for rhip).
 -   **Headswapping -** Several new heads are available for the human male and human female species. You can add your own heads - see the .headswap files in the sp_custom.pk3 for examples. NPCs can have heads set using the playerHeadModel and customHeadSkin commands in their .npc file.
 -   **RGB Character Colors -** Adds an RGB slider option to all player species.
 -   **Better Entity Spawning -** The /spawn command now supports entity keys, e.g. "**spawn fx_runner fxFile the/file**".
@@ -56,7 +56,6 @@ It's based on OpenJK (so the code is released under the GPL and available at <ht
 
 **Known bugs:**
 
--   holsterPlace for .sab files currently does not work
 -   The ingame saber menu won't let you switch from dual sabers to single saber. Workaround is to use /saber kyle (or any single saber) and then use the menu to choose one.
 -   g_forceRegenTime doesn't go less than the default value
 -   Player RGB tints can't be removed in the menu
