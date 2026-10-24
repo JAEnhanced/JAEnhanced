@@ -6583,7 +6583,7 @@ static void CG_CreateSaberMarks( vec3_t start, vec3_t end, vec3_t normal )
 	}
 }
 
-extern void FX_AddPrimitive( CEffect **effect, int killTime );
+extern void FX_AddPrimitive( CEffect *effect, int killTime );
 //-------------------------------------------------------
 void CG_CheckSaberInWater( centity_t *cent, centity_t *scent, int saberNum, int modelIndex, vec3_t origin, vec3_t angles )
 {
@@ -7383,7 +7383,7 @@ if (cg_SFXSabers.integer == 0)
 					fx->mVerts[3].destST[1] = 0.99f;
 
 	//				fx->SetFlags( FX_USE_ALPHA );
-					FX_AddPrimitive( (CEffect**)&fx, duration );//SABER_TRAIL_TIME );
+					FX_AddPrimitive( fx, duration );//SABER_TRAIL_TIME );
 				}
 			}
 
@@ -7588,7 +7588,7 @@ else
 			fx->mVerts[3].destST[0] = 4.0f;
 			fx->mVerts[3].destST[1] = 4.0f;
 			
-			FX_AddPrimitive( (CEffect**)&fx, 0 );
+			FX_AddPrimitive( fx, 0 );
 		}
 	
 		if ( (client->ps.saber[saberNum].saberFlags2&SFL2_NO_BLADE) )
