@@ -9114,8 +9114,8 @@ static void PM_FinishWeaponChange( void ) {
 		}
 		if ( trueSwitch )
 		{//actually did switch weapons, play anim
-			if (!G_IsRidingVehicle(pm->gent))
-			{
+			if (!G_IsRidingVehicle(pm->gent) && !g_noIgniteTwirl->integer)
+			{//with g_noIgniteTwirl, PM_TorsoAnimLightsaber puts us in the ready pose instead
 				PM_SetSaberMove(LS_DRAW);
 			}
 		}
