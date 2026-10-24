@@ -22,6 +22,11 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 void R_PushDebugGroup(annotationLayer_t layer, const char* name)
 {
 	static GLuint currentLayer = (GLuint)AL_NONE;
+
+	// GL_KHR_debug is missing on macOS and older drivers
+	if (!qglPushDebugGroupKHR || !qglPopDebugGroupKHR)
+		return;
+
 	assert(layer <= currentLayer + 1);
 	while (layer <= currentLayer)
 	{
