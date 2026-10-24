@@ -1983,6 +1983,7 @@ void G_AddWeaponModels( gentity_t *ent )
 
 extern saber_colors_t TranslateSaberColor( const char *name );
 extern void WP_RemoveSaber( gentity_t *ent, int saberNum );
+extern void WP_SaberSetDefaults( saberInfo_t *saber, qboolean setColors );
 void G_ChangePlayerModel( gentity_t *ent, const char *newModel );
 void G_ChangeHeadModel( gentity_t *ent, const char *newModel );
 
@@ -2470,6 +2471,10 @@ void G_ReloadSaberData( gentity_t *ent )
 		}
 		//Custom saber stuff!
 		G_SetCustomSaberSkinFromCVars(ent, 1);
+	}
+	else if ( ent->client->ps.saber[1].model != NULL )
+	{
+		WP_SaberSetDefaults( &ent->client->ps.saber[1], qfalse );
 	}
 }
 

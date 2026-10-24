@@ -44,6 +44,7 @@ static float	dmgFraction[MAX_SABER_VICTIMS];
 static int		hitLoc[MAX_SABER_VICTIMS];
 static qboolean	hitDismember[MAX_SABER_VICTIMS];
 static int		hitDismemberLoc[MAX_SABER_VICTIMS];
+int				saberDismemberLoc = HL_NONE;
 static vec3_t	saberHitLocation, saberHitNormal={0,0,1.0};
 static float	saberHitFraction;
 static float	sabersCrossed;
@@ -163,6 +164,7 @@ qboolean FP_ForceDrainGrippableEnt( gentity_t *victim );
 
 extern cvar_t	*g_saberAutoBlocking;
 extern cvar_t	*g_saberRealisticCombat;
+extern cvar_t	*g_dismemberRealistic;
 extern cvar_t	*g_saberDamageCapping;
 extern cvar_t	*g_saberNewControlScheme;
 extern cvar_t	*g_flippedHolsters;
@@ -1699,7 +1701,7 @@ qboolean WP_SaberApplyDamage( gentity_t *ent, float baseDamage, int baseDFlags,
 							}
 							else
 							{
-								if ( debug_subdivision->integer || g_saberRealisticCombat->integer )
+								if ( debug_subdivision->integer || g_saberRealisticCombat->integer || g_dismemberRealistic->integer )
 								{
 									dFlags |= DAMAGE_DISMEMBER;
 									if ( hitDismember[i] )
@@ -1877,7 +1879,9 @@ qboolean WP_SaberApplyDamage( gentity_t *ent, float baseDamage, int baseDFlags,
 						{
 							damage = ceil(totalDmg[i]);
 						}
+						saberDismemberLoc = hitLoc[i];
 						G_Damage( victim, inflictor, ent, dmgDir[i], dmgSpot[i], damage, dFlags, MOD_SABER, hitDismemberLoc[i] );
+						saberDismemberLoc = HL_NONE;
 						if ( damage > 0 && cg.time )
 						{
 							float sizeTimeScale = 1.0f;

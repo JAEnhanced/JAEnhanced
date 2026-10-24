@@ -200,6 +200,7 @@ cvar_t	*g_debugMelee;
 cvar_t	*g_saberRestrictForce;
 cvar_t	*g_saberPickuppableDroppedSabers;
 cvar_t	*g_dismemberProbabilities;
+cvar_t	*g_dismemberRealistic;
 
 cvar_t	*g_speederControlScheme;
 
@@ -632,6 +633,30 @@ void G_FindTeams( void ) {
 
 /*
 ============
+G_ValidateSkill
+
+Only g_spskill 0-2 is supported: spawnflags 256/512/1024 hide entities per skill, and
+the next bit (2048) is NO_EXPLOSION/SHY, so higher values would drop those entities and
+break AI tuning. Jedi Master is g_spskill 2 with handicap 50; older JAE menus set it as
+g_spskill 3, which also comes back from their savegames and configs.
+============
+*/
+static void G_ValidateSkill( void ) {
+	if ( g_spskill->integer > 2 )
+	{
+		gi.Printf( S_COLOR_YELLOW "g_spskill %s is not supported, using Jedi Master (g_spskill 2, handicap 50)\n", g_spskill->string );
+		gi.cvar_set( "g_spskill", "2" );
+		gi.cvar_set( "handicap", "50" );
+	}
+	else if ( g_spskill->integer < 0 )
+	{
+		gi.Printf( S_COLOR_YELLOW "g_spskill %s is not supported, using Jedi Padawan (g_spskill 0)\n", g_spskill->string );
+		gi.cvar_set( "g_spskill", "0" );
+	}
+}
+
+/*
+============
 G_InitCvars
 
 ============
@@ -688,6 +713,7 @@ void G_InitCvars( void ) {
 	g_saberRealisticCombat = gi.cvar( "g_saberMoreRealistic", "0", CVAR_ARCHIVE );//makes collision more precise, increases damage
 	debug_subdivision = gi.cvar( "debug_subdivision", "0", CVAR_ARCHIVE );//debug for dismemberment
 	g_dismemberProbabilities = gi.cvar ( "g_dismemberProbabilities", "1", CVAR_ARCHIVE );//0 = ignore probabilities, 1 = use probabilities
+	g_dismemberRealistic = gi.cvar ( "g_dismemberRealistic", "0", CVAR_ARCHIVE );//1 = any saber kill can dismember where it hit, 2 = corpses too; g_dismemberProbabilities becomes a percent chance (the default of 1 is 1%, so set it too), damage unchanged
 	g_saberDamageCapping = gi.cvar( "g_saberDamageCapping", "1", CVAR_CHEAT );//caps damage of sabers vs players and NPC who use sabers
 	g_saberMoveSpeed = gi.cvar( "g_saberMoveSpeed", "1", CVAR_CHEAT );//how fast you run while attacking with a saber
 	g_saberAnimSpeed = gi.cvar( "g_saberAnimSpeed", "1", CVAR_CHEAT );//how fast saber animations run
@@ -795,6 +821,7 @@ void InitGame(  const char *mapname, const char *spawntarget, int checkSum, cons
 	srand( randomSeed );
 
 	G_InitCvars();
+	G_ValidateSkill();	// before any entities spawn
 
 	G_InitMemory();
 
@@ -1971,6 +1998,8 @@ void G_RunFrame( int levelTime ) {
 	level.framenum++;
 	level.previousTime = level.time;
 	level.time = levelTime;
+
+	G_ValidateSkill();	// g_spskill can be changed mid-level from the menu or console
 
 	//ResetTeamCounters();
 	NAV::DecayDangerSenses();
