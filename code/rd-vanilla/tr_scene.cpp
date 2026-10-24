@@ -141,7 +141,7 @@ void RE_AddPolyToScene( qhandle_t hShader , int numVerts, const polyVert_t *vert
       since we don't plan on changing the const and making for room for those effects
       simply cut this message to developer only
       */
-		ri->Printf( PRINT_DEVELOPER, S_COLOR_YELLOW  "WARNING: RE_AddPolyToScene: r_max_polys or r_max_polyverts reached\n");
+		ri.Printf( PRINT_DEVELOPER, S_COLOR_YELLOW  "WARNING: RE_AddPolyToScene: r_max_polys or r_max_polyverts reached\n");
 		return;
 	}
 
@@ -213,7 +213,7 @@ void RE_AddRefEntityToScene( const refEntity_t *ent ) {
 	}
 	if ( r_numentities >= MAX_REFENTITIES ) {
 #ifndef FINAL_BUILD
-		ri->Printf( PRINT_WARNING, "WARNING: RE_AddRefEntityToScene: too many entities\n");
+		ri.Printf( PRINT_WARNING, "WARNING: RE_AddRefEntityToScene: too many entities\n");
 #endif
 		return;
 	}
@@ -281,7 +281,7 @@ void RE_RenderScene( const refdef_t *fd ) {
 		return;
 	}
 
-	startTime = ri->Milliseconds();
+	startTime = ri.Milliseconds();
 
 	if (!tr.world && !( fd->rdflags & RDF_NOWORLDMODEL ) ) {
 		Com_Error (ERR_DROP, "R_RenderScene: NULL worldmodel");
@@ -410,6 +410,6 @@ void RE_RenderScene( const refdef_t *fd ) {
 	r_firstSceneDlight = r_numdlights;
 	r_firstScenePoly = r_numpolys;
 
-	tr.frontEndMsec += ri->Milliseconds() - startTime;
+	tr.frontEndMsec += ri.Milliseconds() - startTime;
 	RE_RenderWorldEffects();
 }
