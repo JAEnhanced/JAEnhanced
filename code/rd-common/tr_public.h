@@ -130,7 +130,7 @@ typedef struct {
 
 } refimport_t;
 
-extern refimport_t *ri;
+extern refimport_t ri;
 
 //
 // these are the functions exported by the refresh module
