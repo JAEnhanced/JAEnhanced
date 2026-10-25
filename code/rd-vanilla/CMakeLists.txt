@@ -53,6 +53,9 @@ if(BuildSPRdVanilla OR BuildJK2SPRdVanilla)
 
     # Transparently use either bundled or system jpeg.
     list(APPEND SPRDVanillaRendererIncludeDirectories ${JPEG_INCLUDE_DIR})
+    if(UseInternalJPEG AND UseTurboJPEG)
+        list(APPEND SPRDVanillaRendererIncludeDirectories ${JPEG_CONFIG_DIR})
+    endif()
     list(APPEND SPRDVanillaRendererLibraries          ${JPEG_LIBRARIES})
 
     # Transparently use either bundled or system libpng.  Order is important --

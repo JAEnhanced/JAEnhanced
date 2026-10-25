@@ -52,6 +52,9 @@ jobs:
       - name: Add msbuild to PATH
         uses: microsoft/setup-msbuild@v1.3.2
 
+      - name: Setup NASM
+        uses: ilammy/setup-nasm@72793074d3c8cdda771dba85f6deafe00623038b
+
       - name: Create Build Environment
         run: cmake -E make_directory ${{ github.workspace }}/build
 
@@ -60,6 +63,7 @@ jobs:
         working-directory: ${{ github.workspace }}/build
         run: |
           OPTIONS="-DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DCMAKE_INSTALL_PREFIX=bin"
+          OPTIONS+=" -DUseTurboJPEG=ON"
           if [ "${{ matrix.portable }}" == "Portable" ]; then
             OPTIONS+=" -DBuildPortableVersion=ON"
           else
@@ -115,6 +119,9 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
+      - name: Setup NASM
+        uses: ilammy/setup-nasm@72793074d3c8cdda771dba85f6deafe00623038b
+
       - name: Create Build Environment
         run: |
           if [ ${{ matrix.arch }} == "x86" ]; then
@@ -143,7 +150,7 @@ jobs:
           if [ ${{ matrix.arch }} == "x86" ]; then
             OPTIONS+=" -DCMAKE_TOOLCHAIN_FILE=cmake/Toolchains/linux-i686.cmake"
           fi
-          OPTIONS+=" -DUseInternalJPEG=ON"
+          OPTIONS+=" -DUseInternalJPEG=ON -DUseTurboJPEG=ON"
           cmake $GITHUB_WORKSPACE $OPTIONS
 
       - name: Build
@@ -205,6 +212,9 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
+      - name: Setup NASM
+        uses: ilammy/setup-nasm@72793074d3c8cdda771dba85f6deafe00623038b
+
       - name: Create Build Environment
         run: |
           brew install zlib libjpeg libpng
@@ -215,7 +225,7 @@ jobs:
         working-directory: ${{ github.workspace }}/build
         run: |
           OPTIONS="-DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/install"
-          OPTIONS+=" -DUseInternalPNGNeon=ON"
+          OPTIONS+=" -DUseInternalPNGNeon=ON -DUseTurboJPEG=ON"
           if [ "${{ matrix.portable }}" == "Portable" ]; then
             OPTIONS+=" -DUseInternalLibs=ON -DBuildPortableVersion=ON"
           else

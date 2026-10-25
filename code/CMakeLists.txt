@@ -34,6 +34,15 @@ if(BuildSPRend2 OR BuildJK2SPRdRend2)
 	add_subdirectory("${SPDir}/rd-rend2")
 endif(BuildSPRend2 OR BuildJK2SPRdRend2)
 
+if(UseInternalJPEG AND UseTurboJPEG)
+	if(BuildSPRdVanilla)
+		add_dependencies(${SPRDVanillaRenderer} libjpeg-turbo)
+	endif()
+	if(BuildSPRend2)
+		add_dependencies(${SPRend2} libjpeg-turbo)
+	endif()
+endif()
+
 #    Add Engine Project
 if(BuildSPEngine OR BuildJK2SPEngine)
 	# Libraries

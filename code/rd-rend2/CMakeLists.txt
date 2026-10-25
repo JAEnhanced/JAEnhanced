@@ -120,6 +120,9 @@ set(SPRend2Files ${SPRend2Files} ${SPRend2CommonSafeFiles})
 
 # Transparently use either bundled or system libjpeg.
 list(APPEND SPRend2IncludeDirectories ${JPEG_INCLUDE_DIR})
+if(UseInternalJPEG AND UseTurboJPEG)
+	list(APPEND SPRend2IncludeDirectories ${JPEG_CONFIG_DIR})
+endif()
 list(APPEND SPRend2Libraries          ${JPEG_LIBRARIES})
 
 # Transparently use either bundled or system libpng.  Order is important --
