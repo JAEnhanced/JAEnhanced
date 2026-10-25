@@ -1024,6 +1024,7 @@ typedef struct {
 	int						overbrightBits;		// r_overbrightBits->integer, but set to 0 if no hw gamma
 	int						dynamicGlowWidth;	// glow buffer size, from r_DynamicGlowWidth/Height or r_DynamicGlowScale
 	int						dynamicGlowHeight;
+	qboolean				overbrightBitsEmulation;
 
 	orientationr_t			ori;					// for current entity
 
