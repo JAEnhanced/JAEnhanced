@@ -2433,6 +2433,14 @@ void RenderSurfaces( CRenderSurface &RS, const trRefEntity_t *ent, int entityNum
 					break;
 				}
 			}
+
+			// dismemberment turns on caps that some skins leave off and the model has no shader
+			// for (the waist caps of the customizable characters), draw those with the
+			// stormtrooper caps instead of the default image
+			if ( ( shader == tr.defaultShader || shader->defaultShader ) && strstr( surfInfo->name, "_cap_" ) )
+			{
+				shader = R_FindShader( "models/players/stormtrooper/caps", lightmapsNone, stylesDefault, qtrue );
+			}
 		}
 		else
 		{
