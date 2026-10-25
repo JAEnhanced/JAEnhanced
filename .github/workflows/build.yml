@@ -119,9 +119,6 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      - name: Setup NASM
-        uses: ilammy/setup-nasm@72793074d3c8cdda771dba85f6deafe00623038b
-
       - name: Create Build Environment
         run: |
           if [ ${{ matrix.arch }} == "x86" ]; then
@@ -143,14 +140,13 @@ jobs:
         run: |
           OPTIONS="-DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/install"
           if [ "${{ matrix.portable }}" == "Portable" ]; then
-            OPTIONS+=" -DUseInternalLibs=ON -DBuildPortableVersion=ON"
+            OPTIONS+=" -DBuildPortableVersion=ON"
           else
-            OPTIONS+=" -DUseInternalLibs=OFF -DBuildPortableVersion=OFF"
+            OPTIONS+=" -DBuildPortableVersion=OFF"
           fi
           if [ ${{ matrix.arch }} == "x86" ]; then
             OPTIONS+=" -DCMAKE_TOOLCHAIN_FILE=cmake/Toolchains/linux-i686.cmake"
           fi
-          OPTIONS+=" -DUseInternalJPEG=ON -DUseTurboJPEG=ON"
           cmake $GITHUB_WORKSPACE $OPTIONS
 
       - name: Build
@@ -213,6 +209,7 @@ jobs:
           fetch-tags: true
 
       - name: Setup NASM
+        if: matrix.arch == 'x86_64'
         uses: ilammy/setup-nasm@72793074d3c8cdda771dba85f6deafe00623038b
 
       - name: Create Build Environment
