@@ -92,6 +92,10 @@ option(UseInternalPNG    "If set, use bundled libpng."  ${UseInternalPNGDefault}
 option(UseInternalJPEG   "If set, use bundled libjpeg." ${UseInternalJPEGDefault})
 option(UseInternalSDL2   "If set, use bundled SDL2."    ${UseInternalSDL2Default})
 
+cmake_dependent_option(UseTurboJPEG
+		"If set, build and use libjpeg-turbo instead of the bundled libjpeg" OFF
+		"UseInternalJPEG" OFF)
+
 cmake_dependent_option(UseInternalPNGNeon
 		"Build the bundled libpng with arm64 NEON optimisations" OFF
 		"UseInternalPNG" OFF)
@@ -400,7 +404,113 @@ set(SharedCommonSafeFiles
 #
 #=============================================================================
 if(UseInternalJPEG)
-  add_subdirectory(lib/jpeg-9a)
+  if(UseTurboJPEG)
+    include(ExternalProject)
+
+    # Forward the toolchain so cross builds (e.g. linux-i686) stay consistent.
+    set(TurboToolchainArgs "")
+    if(CMAKE_TOOLCHAIN_FILE)
+      get_filename_component(TurboToolchainFile "${CMAKE_TOOLCHAIN_FILE}" ABSOLUTE BASE_DIR "${CMAKE_SOURCE_DIR}")
+      list(APPEND TurboToolchainArgs "-DCMAKE_TOOLCHAIN_FILE=${TurboToolchainFile}")
+    endif()
+
+    # libjpeg-turbo names it jpeg-static.lib only for MSVC-like compilers, and
+    # multi-config generators put it in a per-config folder.
+    if(MSVC)
+      set(TurboJpegName "jpeg-static.lib")
+    else()
+      set(TurboJpegName "${CMAKE_STATIC_LIBRARY_PREFIX}jpeg${CMAKE_STATIC_LIBRARY_SUFFIX}")
+    endif()
+    get_property(TurboMultiConfig GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
+    if(TurboMultiConfig)
+      set(TurboConfigDir "/$<CONFIG>")
+    else()
+      set(TurboConfigDir "")
+    endif()
+
+    # Adds one libjpeg-turbo build for osxArch (empty = the default target).
+    function(jae_add_libjpeg_turbo name osxArch)
+      if(osxArch)
+        set(arch "${osxArch}")
+      else()
+        set(arch "${Architecture}")
+      endif()
+
+      set(simdArgs "")
+      if((NOT osxArch AND X86) OR arch MATCHES "x86_64|i386")
+        find_program(JAENasmExecutable NAMES nasm)
+        if(JAENasmExecutable)
+          list(APPEND simdArgs -DWITH_SIMD=1 -DCMAKE_ASM_NASM_COMPILER=${JAENasmExecutable})
+        else()
+          message(WARNING "NASM assembler not found - libjpeg-turbo will be built without SIMD optimizations")
+          list(APPEND simdArgs -DWITH_SIMD=0)
+        endif()
+      elseif(arch MATCHES "^arm")
+        list(APPEND simdArgs -DWITH_SIMD=1)
+      else()
+        list(APPEND simdArgs -DWITH_SIMD=0)
+      endif()
+
+      ExternalProject_Add(${name}
+        GIT_REPOSITORY https://github.com/libjpeg-turbo/libjpeg-turbo.git
+        GIT_TAG 3.1.4.1
+        BUILD_COMMAND ${CMAKE_COMMAND} --build . --target jpeg-static --config $<CONFIG>
+        INSTALL_COMMAND ""
+        BUILD_BYPRODUCTS "<BINARY_DIR>${TurboConfigDir}/${TurboJpegName}"
+        CMAKE_ARGS
+        ${simdArgs}
+        ${TurboToolchainArgs}
+        -DENABLE_SHARED=0
+        -DWITH_ARITH_DEC=0
+        -DWITH_ARITH_ENC=0
+        -DWITH_TURBOJPEG=0
+        -DWITH_TOOLS=0
+        -DWITH_TESTS=0
+        -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+        -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+        -DCMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}
+        -DCMAKE_OSX_SYSROOT=${CMAKE_OSX_SYSROOT}
+        -DCMAKE_OSX_ARCHITECTURES=${osxArch})
+
+      ExternalProject_Get_Property(${name} BINARY_DIR SOURCE_DIR)
+      set(${name}_SOURCE_DIR "${SOURCE_DIR}" PARENT_SCOPE)
+      set(${name}_BINARY_DIR "${BINARY_DIR}" PARENT_SCOPE)
+      set(${name}_LIBRARY "${BINARY_DIR}${TurboConfigDir}/${TurboJpegName}" PARENT_SCOPE)
+    endfunction()
+
+    list(LENGTH CMAKE_OSX_ARCHITECTURES TurboArchCount)
+    if(TurboArchCount GREATER 1)
+      # libjpeg-turbo refuses multiple architectures, so build each one and lipo them.
+      set(TurboSliceTargets "")
+      set(TurboSliceLibs "")
+      foreach(TurboArch ${CMAKE_OSX_ARCHITECTURES})
+        jae_add_libjpeg_turbo(libjpeg-turbo-${TurboArch} ${TurboArch})
+        list(APPEND TurboSliceTargets libjpeg-turbo-${TurboArch})
+        list(APPEND TurboSliceLibs "${libjpeg-turbo-${TurboArch}_LIBRARY}")
+        set(TurboFirstArch ${TurboArch})
+      endforeach()
+
+      set(JPEG_LIBRARIES "${CMAKE_BINARY_DIR}/libjpeg-turbo-universal${TurboConfigDir}/${TurboJpegName}")
+      add_custom_command(OUTPUT "${JPEG_LIBRARIES}"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/libjpeg-turbo-universal${TurboConfigDir}"
+        COMMAND lipo -create -output "${JPEG_LIBRARIES}" ${TurboSliceLibs}
+        DEPENDS ${TurboSliceTargets} ${TurboSliceLibs})
+      add_custom_target(libjpeg-turbo DEPENDS "${JPEG_LIBRARIES}")
+
+      # jconfig.h doesn't depend on the architecture
+      set(JPEG_INCLUDE_DIR "${libjpeg-turbo-${TurboFirstArch}_SOURCE_DIR}/src")
+      set(JPEG_CONFIG_DIR "${libjpeg-turbo-${TurboFirstArch}_BINARY_DIR}")
+    else()
+      jae_add_libjpeg_turbo(libjpeg-turbo "${CMAKE_OSX_ARCHITECTURES}")
+
+      # Expose the external build the same way FindJPEG / lib/jpeg-9a do.
+      set(JPEG_INCLUDE_DIR "${libjpeg-turbo_SOURCE_DIR}/src")
+      set(JPEG_CONFIG_DIR "${libjpeg-turbo_BINARY_DIR}")
+      set(JPEG_LIBRARIES "${libjpeg-turbo_LIBRARY}")
+    endif()
+  else()
+    add_subdirectory(lib/jpeg-9a)
+  endif()
 else()
   find_package(JPEG REQUIRED)
 endif()
