@@ -1351,17 +1351,23 @@ void R_CreateBuiltinImages( void ) {
 	qglTexParameteri( GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
 
 	// Create the minimized scene blur image.
-	if ( r_DynamicGlowWidth->integer > glConfig.vidWidth  )
+	// r_DynamicGlowWidth/Height give an absolute size; when either is 0 the
+	// buffer is r_DynamicGlowScale times the screen size instead.
+	if ( r_DynamicGlowWidth->integer <= 0 || r_DynamicGlowHeight->integer <= 0 )
 	{
-		r_DynamicGlowWidth->integer = glConfig.vidWidth;
+		tr.dynamicGlowWidth = glConfig.vidWidth * r_DynamicGlowScale->value;
+		tr.dynamicGlowHeight = glConfig.vidHeight * r_DynamicGlowScale->value;
 	}
-	if ( r_DynamicGlowHeight->integer > glConfig.vidHeight  )
+	else
 	{
-		r_DynamicGlowHeight->integer = glConfig.vidHeight;
+		tr.dynamicGlowWidth = r_DynamicGlowWidth->integer;
+		tr.dynamicGlowHeight = r_DynamicGlowHeight->integer;
 	}
+	tr.dynamicGlowWidth = Com_Clampi( 1, glConfig.vidWidth, tr.dynamicGlowWidth );
+	tr.dynamicGlowHeight = Com_Clampi( 1, glConfig.vidHeight, tr.dynamicGlowHeight );
 	tr.blurImage = 1024 + giTextureBindNum++;
 	qglBindTexture( GL_TEXTURE_RECTANGLE_ARB, tr.blurImage );
-	qglTexImage2D( GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA16, r_DynamicGlowWidth->integer, r_DynamicGlowHeight->integer, 0, GL_RGB, GL_FLOAT, 0 );
+	qglTexImage2D( GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA16, tr.dynamicGlowWidth, tr.dynamicGlowHeight, 0, GL_RGB, GL_FLOAT, 0 );
 	qglTexParameteri( GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
 	qglTexParameteri( GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
 	qglTexParameteri( GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
