@@ -40,6 +40,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "qcommon/game_version.h"
 
 extern void WP_SaberLoadParms( void );
+extern void WP_SaberCheckHolsterCvars( void );
 extern qboolean G_PlayerSpawned( void );
 
 extern void Rail_Initialize( void );
@@ -246,6 +247,7 @@ cvar_t	*g_broadsword;
 
 cvar_t	*g_allowBunnyhopping;
 cvar_t	*g_flippedHolsters;
+cvar_t	*g_saberHolster;
 cvar_t	*g_noIgniteTwirl;
 
 cvar_t	*g_forceRegenTime;
@@ -782,6 +784,8 @@ void G_InitCvars( void ) {
 	gi.cvar( "g_clearstats", "1", CVAR_ROM|CVAR_NORESTART);
 	
 	g_flippedHolsters = gi.cvar( "g_flippedHolsters", "0", CVAR_ARCHIVE );//if 1, saber faces up when holstered not down
+
+	g_saberHolster = gi.cvar( "g_saberHolster", "0", CVAR_ARCHIVE );//where everyone's sabers are holstered: 0 = the .sab file's holsterPlace, 1 = off, 2 = left hip, 3 = right hip, 4 = back over the left shoulder, 5 = back over the right shoulder
 	
 	g_noIgniteTwirl = gi.cvar( "g_noIgniteTwirl", "0", CVAR_ARCHIVE );//if 1, don't do ignite twirl
 	
@@ -2000,6 +2004,7 @@ void G_RunFrame( int levelTime ) {
 	level.time = levelTime;
 
 	G_ValidateSkill();	// g_spskill can be changed mid-level from the menu or console
+	WP_SaberCheckHolsterCvars();	// so are the holster cvars
 
 	//ResetTeamCounters();
 	NAV::DecayDangerSenses();

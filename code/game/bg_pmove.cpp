@@ -9353,7 +9353,7 @@ void PM_SetSaberMove(saberMoveName_t newMove)
 		{
 			anim = pm->ps->saber[1].drawAnim;
 		}
-		else if ( pm->ps->saber[0].holsterPlace == HOLSTER_BACK )
+		else if ( WP_SaberHolsteredOnBack( pm->ps ) )
 		{
 			//TODO: nice back draw anim
 			anim = BOTH_S1_S7;
@@ -9385,7 +9385,7 @@ void PM_SetSaberMove(saberMoveName_t newMove)
 		{
 			anim = pm->ps->saber[1].putawayAnim;
 		}
-		else if ( pm->ps->saber[0].holsterPlace == HOLSTER_BACK )
+		else if ( WP_SaberHolsteredOnBack( pm->ps ) )
 		{
 			anim = BOTH_S7_S1;
 		}
