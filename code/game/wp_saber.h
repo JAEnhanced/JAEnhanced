@@ -199,10 +199,13 @@ enum
 extern void WP_InitForcePowers( gentity_t *ent );
 extern int WP_GetVelocityForForceJump( gentity_t *self, vec3_t jumpVel, usercmd_t *ucmd );
 extern int WP_SaberInitBladeData( gentity_t *ent );
-extern void G_CreateG2HolsteredWeaponModel( gentity_t *ent, const char *weaponModel, int boltNum, int weaponNum, vec3_t angles, vec3_t offset );
+extern void G_CreateG2HolsteredWeaponModel( gentity_t *ent, const char *weaponModel, int boltNum, int weaponNum, vec3_t angles, vec3_t offset, qboolean useHolsterTag );
 extern void G_CreateG2AttachedWeaponModel( gentity_t *ent, const char *weaponModel, int boltNum, int weaponNum );
 extern void WP_SaberAddG2SaberModels( gentity_t *ent, int specificSaberNum = -1 );
 extern void WP_SaberAddHolsteredG2SaberModels( gentity_t *ent, int specificSaberNum = -1 );
+extern holster_locations_t WP_SaberHolsterPlace( const playerState_t *ps, int saberNum );
+extern qboolean WP_SaberHolsteredOnBack( const playerState_t *ps );
+extern void WP_SaberCheckHolsterCvars( void );
 extern qboolean WP_SaberParseParms( const char *SaberName, saberInfo_t *saber, qboolean setColors = qtrue );
 extern qboolean WP_BreakSaber( gentity_t *ent, const char *surfName, saberType_t saberType = SABER_NONE );
 extern void ForceThrow( gentity_t *self, qboolean pull, qboolean fake = qfalse );

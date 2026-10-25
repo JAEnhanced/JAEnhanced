@@ -150,11 +150,15 @@ stringID_table_t HolsterTable[] =
 	ENUM2STRING(HOLSTER_HIPS),
 	ENUM2STRING(HOLSTER_BACK),
 	ENUM2STRING(HOLSTER_LHIP),
+	ENUM2STRING(HOLSTER_LBACK),
+	ENUM2STRING(HOLSTER_RBACK),
 	{ "none", HOLSTER_NONE },
 	{ "hips", HOLSTER_HIPS },
 	{ "rhip", HOLSTER_HIPS },
 	{ "back", HOLSTER_BACK },
 	{ "lhip", HOLSTER_LHIP },
+	{ "lback", HOLSTER_LBACK },
+	{ "rback", HOLSTER_RBACK },
 	{ "",	-1 }
 };
 
