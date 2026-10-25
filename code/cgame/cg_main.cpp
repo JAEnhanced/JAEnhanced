@@ -2203,7 +2203,10 @@ void CG_CreateMiscEntFromGent(gentity_t *ent, const vec3_t scale, float zOff)
 // ceilings often have their origin inside solid or in the void, where there is
 // no PVS cluster and the model was never drawn. Fall back to the centre of the
 // model's bounds, then to its corners, and keep the old point if all of them are
-// inside solid so models that are completely buried stay hidden.
+// inside solid so models that are completely buried stay hidden. The point is
+// also the lighting origin, so the top corners are tried first: mappers raise
+// the old point with zoffset to light from above, and a bottom corner is often
+// in shadow.
 static void CG_SetMiscEntCullOrigin(cgMiscEntData_t *MiscEnt, const vec3_t mins, const vec3_t maxs)
 {
 	vec3_t	axis[3], local, point;
@@ -2227,10 +2230,10 @@ static void CG_SetMiscEntCullOrigin(cgMiscEntData_t *MiscEnt, const vec3_t mins,
 			VectorScale(local, 0.5f, local);
 		}
 		else
-		{ //corners of the bounds
+		{ //corners of the bounds, top ones first
 			local[0] = (i & 1) ? maxs[0] : mins[0];
 			local[1] = (i & 2) ? maxs[1] : mins[1];
-			local[2] = (i & 4) ? maxs[2] : mins[2];
+			local[2] = (i & 4) ? mins[2] : maxs[2];
 		}
 
 		VectorCopy(MiscEnt->origin, point);
