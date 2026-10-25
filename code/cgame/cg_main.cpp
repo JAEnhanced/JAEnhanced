@@ -2162,6 +2162,7 @@ typedef struct cgMiscEntData_s
 	vec3_t		scale;
 	float		radius;
 	float		zOffset; //some models need a z offset for culling, because of stupid wrong model origins
+	vec3_t		cullOrigin; //point used for the PVS test and lighting, see CG_SetMiscEntCullOrigin
 } cgMiscEntData_t;
 
 static cgMiscEntData_t	MiscEnts[MAX_MISC_ENTS]; //statically allocated for now.
@@ -2197,6 +2198,57 @@ void CG_CreateMiscEntFromGent(gentity_t *ent, const vec3_t scale, float zOff)
 }
 
 #define VectorScaleVector(a,b,c)		(((c)[0]=(a)[0]*(b)[0]),((c)[1]=(a)[1]*(b)[1]),((c)[2]=(a)[2]*(b)[2]))
+
+// Pick the point the PVS test uses. Statics mounted on walls or hanging from
+// ceilings often have their origin inside solid or in the void, where there is
+// no PVS cluster and the model was never drawn. Fall back to the centre of the
+// model's bounds, then to its corners, and keep the old point if all of them are
+// inside solid so models that are completely buried stay hidden. The point is
+// also the lighting origin, so the top corners are tried first: mappers raise
+// the old point with zoffset to light from above, and a bottom corner is often
+// in shadow.
+static void CG_SetMiscEntCullOrigin(cgMiscEntData_t *MiscEnt, const vec3_t mins, const vec3_t maxs)
+{
+	vec3_t	axis[3], local, point;
+	int		i;
+
+	VectorCopy(MiscEnt->origin, MiscEnt->cullOrigin);
+	MiscEnt->cullOrigin[2] += MiscEnt->zOffset+1.0f;
+
+	// a point that can see itself has a PVS cluster and area
+	if (gi.inPVS(MiscEnt->cullOrigin, MiscEnt->cullOrigin))
+	{
+		return;
+	}
+
+	AnglesToAxis(MiscEnt->angles, axis);
+	for (i = -1; i < 8; i++)
+	{
+		if (i < 0)
+		{ //centre of the bounds
+			VectorAdd(mins, maxs, local);
+			VectorScale(local, 0.5f, local);
+		}
+		else
+		{ //corners of the bounds, top ones first
+			local[0] = (i & 1) ? maxs[0] : mins[0];
+			local[1] = (i & 2) ? maxs[1] : mins[1];
+			local[2] = (i & 4) ? mins[2] : maxs[2];
+		}
+
+		VectorCopy(MiscEnt->origin, point);
+		VectorMA(point, local[0], axis[0], point);
+		VectorMA(point, local[1], axis[1], point);
+		VectorMA(point, local[2], axis[2], point);
+
+		if (gi.inPVS(point, point))
+		{
+			VectorCopy(point, MiscEnt->cullOrigin);
+			return;
+		}
+	}
+}
+
 //call on standard model load to spawn the queued stuff
 void CG_CreateMiscEnts(void)
 {
@@ -2219,6 +2271,8 @@ void CG_CreateMiscEnts(void)
 		VectorScaleVector(mins, MiscEnt->scale, mins);
 		VectorScaleVector(maxs, MiscEnt->scale, maxs);
 		MiscEnt->radius = DistanceSquared(mins, maxs);
+
+		CG_SetMiscEntCullOrigin(MiscEnt, mins, maxs);
 	}
 }
 
@@ -2228,7 +2282,6 @@ void CG_DrawMiscEnts(void)
 	cgMiscEntData_t	*MiscEnt = MiscEnts;
 	refEntity_t	refEnt;
 	vec3_t		difference;
-	vec3_t		cullOrigin;
 
 	memset (&refEnt, 0, sizeof(refEnt));
 	refEnt.reType = RT_MODEL;
@@ -2236,10 +2289,7 @@ void CG_DrawMiscEnts(void)
 	refEnt.renderfx = RF_LIGHTING_ORIGIN;
 	for(i=0;i<NumMiscEnts;i++)
 	{
-		VectorCopy(MiscEnt->origin, cullOrigin);
-		cullOrigin[2] += MiscEnt->zOffset+1.0f;
-
-		if (gi.inPVS(cg.refdef.vieworg, cullOrigin))
+		if (gi.inPVS(cg.refdef.vieworg, MiscEnt->cullOrigin))
 		{
 			VectorSubtract(MiscEnt->origin, cg.refdef.vieworg, difference);
 			if (VectorLengthSquared(difference)-(MiscEnt->radius) <= 8192*8192/*RMG_distancecull.value*/)
@@ -2248,7 +2298,7 @@ void CG_DrawMiscEnts(void)
 				AnglesToAxis( MiscEnt->angles, refEnt.axis );
 				VectorCopy(MiscEnt->scale, refEnt.modelScale);
 				VectorCopy(MiscEnt->origin, refEnt.origin);
-				VectorCopy(cullOrigin, refEnt.lightingOrigin);
+				VectorCopy(MiscEnt->cullOrigin, refEnt.lightingOrigin);
 				ScaleModelAxis(&refEnt);
 				cgi_R_AddRefEntityToScene(&refEnt);
 			}

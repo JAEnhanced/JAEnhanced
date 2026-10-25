@@ -46,10 +46,12 @@ option(BuildMPRend2 "Whether to create projects for the EXPERIMENTAL MP rend2 re
 option(BuildSPEngine "Whether to create projects for the SP engine (openjk_sp.exe)" ON)
 option(BuildSPGame "Whether to create projects for the SP gamecode (jagamex86.dll)" ON)
 option(BuildSPRdVanilla "Whether to create projects for the SP default renderer (rdsp-vanilla_x86.dll)" ON)
+option(BuildSPRend2 "Whether to create projects for the EXPERIMENTAL SP rend2 renderer (rdsp-rend2_x86.dll)" ON)
 
 option(BuildJK2SPEngine "Whether to create projects for the jk2 SP engine (openjo_sp.exe)" OFF)
 option(BuildJK2SPGame "Whether to create projects for the jk2 sp gamecode mod (jk2gamex86.dll)" OFF)
 option(BuildJK2SPRdVanilla "Whether to create projects for the jk2 sp renderer (rdjosp-vanilla_x86.dll)" OFF)
+option(BuildJK2SPRdRend2 "Whether to create projects for the EXPERIMENTAL jk2 SP rend2 renderer (rdjosp-rend2_x86.dll)" OFF)
 
 option(BuildTests "Whether to build automatic unit tests (requires Boost)" OFF)
 option(UseAddressSanitizer "Whether to enable runtime address sanitizer" OFF)
@@ -89,6 +91,14 @@ option(UseInternalZlib   "If set, use bundled zlib."    ${UseInternalZlibDefault
 option(UseInternalPNG    "If set, use bundled libpng."  ${UseInternalPNGDefault})
 option(UseInternalJPEG   "If set, use bundled libjpeg." ${UseInternalJPEGDefault})
 option(UseInternalSDL2   "If set, use bundled SDL2."    ${UseInternalSDL2Default})
+
+cmake_dependent_option(UseTurboJPEG
+		"If set, build and use libjpeg-turbo instead of the bundled libjpeg" OFF
+		"UseInternalJPEG" OFF)
+
+cmake_dependent_option(UseInternalPNGNeon
+		"Build the bundled libpng with arm64 NEON optimisations" OFF
+		"UseInternalPNG" OFF)
 
 # This option won't appear on non-Apple platforms.
 if(APPLE)
@@ -130,7 +140,6 @@ else()
 	set(X86 OFF)
 	if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(arm64|aarch64)$")
 		set(Architecture "arm64")
-		add_definitions(-DPNG_ARM_NEON_OPT=0)
 	elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^arm")
 		set(Architecture "arm")
 	elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^i.86$")
@@ -167,6 +176,7 @@ endif()
 set(SPEngine "ja_enhanced.${Architecture}")
 set(SPGame "jaenhancedgame${Architecture}")
 set(SPRDVanillaRenderer "rdcustomsp-vanilla_${Architecture}")
+set(SPRend2 "rdcustomsp-rend2_${Architecture}")
 set(MPEngine "openjk.${Architecture}")
 set(MPVanillaRenderer "rd-vanilla_${Architecture}")
 set(MPDed "openjkded.${Architecture}")
@@ -177,6 +187,7 @@ set(MPRend2 "rd-rend2_${Architecture}")
 set(JK2SPEngine "openjo_sp.${Architecture}")
 set(JK2SPGame "jospgame${Architecture}")
 set(JK2SPVanillaRenderer "rdjosp-vanilla_${Architecture}")
+set(JK2SPRend2Renderer "rdjosp-rend2_${Architecture}")
 set(AssetsPk3 "openjk-${Architecture}.pk3")
 # Library names
 set(MPBotLib "botlib")
@@ -393,7 +404,76 @@ set(SharedCommonSafeFiles
 #
 #=============================================================================
 if(UseInternalJPEG)
-  add_subdirectory(lib/jpeg-9a)
+  if(UseTurboJPEG)
+    include(ExternalProject)
+
+    set(TurboSimdArgs "")
+    set(TurboNeedsNasm OFF)
+    if(X86)
+      set(TurboNeedsNasm ON)
+    elseif(CMAKE_OSX_ARCHITECTURES MATCHES "x86_64|i386")
+      # universal build: the x86_64 slice needs NASM even on an arm64 host
+      set(TurboNeedsNasm ON)
+    endif()
+
+    if(TurboNeedsNasm)
+      find_program(JAENasmExecutable NAMES nasm)
+      if(JAENasmExecutable)
+        message(STATUS "Found NASM assembler: ${JAENasmExecutable}")
+        list(APPEND TurboSimdArgs
+          -DWITH_SIMD=1
+          -DCMAKE_ASM_NASM_COMPILER=${JAENasmExecutable})
+      else()
+        message(WARNING "NASM assembler not found - libjpeg-turbo will be built without SIMD optimizations")
+        list(APPEND TurboSimdArgs -DWITH_SIMD=0)
+      endif()
+    elseif(Architecture STREQUAL "arm64" OR Architecture STREQUAL "arm")
+      list(APPEND TurboSimdArgs -DWITH_SIMD=1)
+    else()
+      list(APPEND TurboSimdArgs -DWITH_SIMD=0)
+    endif()
+
+    # Forward the toolchain so cross builds (e.g. linux-i686) stay consistent.
+    set(TurboToolchainArgs "")
+    if(CMAKE_TOOLCHAIN_FILE)
+      get_filename_component(TurboToolchainFile "${CMAKE_TOOLCHAIN_FILE}" ABSOLUTE BASE_DIR "${CMAKE_SOURCE_DIR}")
+      list(APPEND TurboToolchainArgs "-DCMAKE_TOOLCHAIN_FILE=${TurboToolchainFile}")
+    endif()
+
+    ExternalProject_Add(libjpeg-turbo
+      GIT_REPOSITORY https://github.com/libjpeg-turbo/libjpeg-turbo.git
+      GIT_TAG 3.1.4.1
+      BUILD_COMMAND ${CMAKE_COMMAND} --build . --target jpeg-static --config $<CONFIG>
+      INSTALL_COMMAND ""
+      BUILD_BYPRODUCTS <BINARY_DIR>/${CMAKE_STATIC_LIBRARY_PREFIX}jpeg${CMAKE_STATIC_LIBRARY_SUFFIX}
+      CMAKE_ARGS
+      ${TurboSimdArgs}
+      ${TurboToolchainArgs}
+      -DENABLE_SHARED=0
+      -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+      -DWITH_ARITH_DEC=0
+      -DWITH_ARITH_ENC=0
+      -DWITH_TURBOJPEG=0
+      -DWITH_TOOLS=0
+      -DWITH_TESTS=0
+      -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+      -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+      -DCMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}
+      -DCMAKE_OSX_SYSROOT=${CMAKE_OSX_SYSROOT}
+      "-DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}")
+
+    # Expose the external build the same way FindJPEG / lib/jpeg-9a do.
+    ExternalProject_Get_Property(libjpeg-turbo BINARY_DIR SOURCE_DIR)
+    set(JPEG_INCLUDE_DIR "${SOURCE_DIR}/src")
+    set(JPEG_CONFIG_DIR "${BINARY_DIR}")
+    if(WIN32)
+      set(JPEG_LIBRARIES "${BINARY_DIR}/${CMAKE_BUILD_TYPE}/jpeg-static.lib")
+    else()
+      set(JPEG_LIBRARIES "${BINARY_DIR}/libjpeg.a")
+    endif()
+  else()
+    add_subdirectory(lib/jpeg-9a)
+  endif()
 else()
   find_package(JPEG REQUIRED)
 endif()
@@ -406,6 +486,9 @@ endif()
 
 if(UseInternalPNG)
   add_subdirectory(lib/libpng)
+  if(Architecture STREQUAL "arm64" AND NOT UseInternalPNGNeon)
+    target_compile_definitions(bundled_libpng PRIVATE PNG_ARM_NEON_OPT=0)
+  endif()
 else()
   find_package(PNG REQUIRED)
 endif()
