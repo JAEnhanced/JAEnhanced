@@ -1856,6 +1856,67 @@ void G2_FreeSaveBuffer(char *buffer)
 	Z_Free(buffer);
 }
 
+// A save keeps surfaces, bones and bolts as indexes into the model file it was
+// made with. If that file has changed since (a mod replaced it), free the ones it
+// no longer has instead of letting them index past its arrays.
+static void G2_DropStaleIndexes(CGhoul2Info &ghlInfo)
+{
+	if (ghlInfo.mModelindex == -1 || !ghlInfo.currentModel || !ghlInfo.aHeader)
+	{
+		return;
+	}
+
+	const mdxmHeader_t *mdxm = ghlInfo.currentModel->data.glm ? ghlInfo.currentModel->data.glm->header : nullptr;
+	if (!mdxm)
+	{
+		return;
+	}
+
+	int dropped = 0;
+
+	for (surfaceInfo_t &surf : ghlInfo.mSlist)
+	{
+		if (surf.surface == -1)
+		{
+			continue;
+		}
+
+		const bool generated = (surf.offFlags & G2SURFACEFLAG_GENERATED) != 0;
+		const int surfNum = generated ? (surf.genPolySurfaceIndex & 0xffff) : surf.surface;
+		if (surfNum >= mdxm->numSurfaces || (generated && surf.genLod >= mdxm->numLODs))
+		{
+			surf.surface = -1;
+			dropped++;
+		}
+	}
+
+	for (boneInfo_t &bone : ghlInfo.mBlist)
+	{
+		if (bone.boneNumber >= ghlInfo.aHeader->numBones)
+		{
+			bone.boneNumber = -1;
+			dropped++;
+		}
+	}
+
+	for (boltInfo_t &bolt : ghlInfo.mBltlist)
+	{
+		// bolts on generated surfaces index the surface list, the others the model's surfaces
+		const int numSurfaces = (bolt.surfaceType & G2SURFACEFLAG_GENERATED) ? (int)ghlInfo.mSlist.size() : mdxm->numSurfaces;
+		if (bolt.boneNumber >= ghlInfo.aHeader->numBones || bolt.surfaceNumber >= numSurfaces)
+		{
+			bolt.boneNumber = -1;
+			bolt.surfaceNumber = -1;
+			dropped++;
+		}
+	}
+
+	if (dropped)
+	{
+		ri.Printf(PRINT_WARNING, "%s has changed since the game was saved, dropped %d of its saved surfaces, bones and bolts\n", ghlInfo.mFileName, dropped);
+	}
+}
+
 void G2_LoadGhoul2Model(
 	CGhoul2Info_v& ghoul2,
 	char* buffer)
@@ -1941,6 +2002,8 @@ void G2_LoadGhoul2Model(
 		{
 			ghoul2[i].mBltlist[x].sg_import(saved_game, ::ri.saved_game->version());
 		}
+
+		::G2_DropStaleIndexes(ghoul2[i]);
 	}
 
 	saved_game.ensure_all_data_read();
