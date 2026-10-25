@@ -99,6 +99,7 @@ cvar_t	*r_DynamicGlowIntensity;
 cvar_t	*r_DynamicGlowSoft;
 cvar_t	*r_DynamicGlowWidth;
 cvar_t	*r_DynamicGlowHeight;
+cvar_t	*r_DynamicGlowScale;
 
 cvar_t	*r_ignoreGLErrors;
 cvar_t	*r_logFile;
@@ -1539,6 +1540,7 @@ void R_Register( void )
 	r_DynamicGlowSoft = ri->Cvar_Get( "r_DynamicGlowSoft", "1", CVAR_ARCHIVE );
 	r_DynamicGlowWidth = ri->Cvar_Get( "r_DynamicGlowWidth", "320", CVAR_ARCHIVE | CVAR_LATCH );
 	r_DynamicGlowHeight = ri->Cvar_Get( "r_DynamicGlowHeight", "240", CVAR_ARCHIVE | CVAR_LATCH );
+	r_DynamicGlowScale = ri->Cvar_Get( "r_DynamicGlowScale", "0.25", CVAR_ARCHIVE | CVAR_LATCH );
 
 	r_picmip = ri->Cvar_Get ("r_picmip", "0", CVAR_ARCHIVE | CVAR_LATCH );
 	ri->Cvar_CheckRange( r_picmip, 0, 16, qtrue );
