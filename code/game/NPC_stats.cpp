@@ -806,7 +806,7 @@ This file's presence is not required
 ======================
 */
 static
-void G_ParseAnimationEvtFile(int glaIndex, const char* eventsDirectory, int fileIndex, int iRealGLAIndex = -1, bool modelSpecific = false)
+void G_ParseAnimationEvtFile(int glaIndex, const char* eventsDirectory, int fileIndex, int iRealGLAIndex = -1, bool modelSpecific = false, const char* npcType=0)
 {
 	int				len;
 	const char*		token;
@@ -853,7 +853,7 @@ void G_ParseAnimationEvtFile(int glaIndex, const char* eventsDirectory, int file
 
 	if (modelSpecific)
 	{
-		hstring		modelName(eventsDirectory);
+		hstring		modelName(!npcType ? eventsDirectory : npcType);
 		modelIndex = modelName.handle();
 	}
 
@@ -1053,7 +1053,7 @@ qboolean G_ParseAnimationFile(int glaIndex, const char *skeletonName, int fileIn
 // the animation event file.
 //
 ////////////////////////////////////////////////////////////////////////
-int		G_ParseAnimFileSet(const char *skeletonName, const char *modelName=0)
+int		G_ParseAnimFileSet(const char *skeletonName, const char *modelName=0, const char *npcType=0)
 {
 	int			fileIndex=0;
 
@@ -1177,10 +1177,22 @@ int		G_ParseAnimFileSet(const char *skeletonName, const char *modelName=0)
 	//--------------------------------------
 	if (modelName)
 	{
+		// NPC variants (stormtrooper2, ...) share a model but need their own
+		// tag so the model-specific events match the entity's NPC_type
+		const char	*eventsOwner = modelName;
+		char		npcTypeLwr[MAX_QPATH];
+
+		if (npcType)
+		{
+			Q_strncpyz(npcTypeLwr, npcType, sizeof(npcTypeLwr));
+			Q_strlwr(npcTypeLwr);
+			eventsOwner = npcTypeLwr;
+		}
+
 		// Quick Search To See If We've Already Loaded This Model
 		//--------------------------------------------------------
 		int			curModel=0;
-		hstring		curModelName(modelName);
+		hstring		curModelName(eventsOwner);
 		while (curModel<MAX_MODELS_PER_LEVEL && !modelsAlreadyDone[curModel].empty())
 		{
 			if (modelsAlreadyDone[curModel]==curModelName)
@@ -1205,7 +1217,7 @@ int		G_ParseAnimFileSet(const char *skeletonName, const char *modelName=0)
 		{
 			const int iGLAIndexToCheckForSkip = (Q_stricmp(skeletonName, "_humanoid")?-1:gi.G2API_PrecacheGhoul2Model("models/players/_humanoid/_humanoid.gla")); // ;-)
 
-			G_ParseAnimationEvtFile(0, modelName, fileIndex, iGLAIndexToCheckForSkip, true);
+			G_ParseAnimationEvtFile(0, modelName, fileIndex, iGLAIndexToCheckForSkip, true, eventsOwner);
 		}
 	}
 
@@ -1213,7 +1225,7 @@ int		G_ParseAnimFileSet(const char *skeletonName, const char *modelName=0)
 }
 
 extern cvar_t	*g_char_model;
-void G_LoadAnimFileSet( gentity_t *ent, const char *pModelName )
+void G_LoadAnimFileSet( gentity_t *ent, const char *pModelName, const char *npcType=0 )
 {
 //load its animation config
 	char	animName[MAX_QPATH];
@@ -1253,7 +1265,7 @@ void G_LoadAnimFileSet( gentity_t *ent, const char *pModelName )
 	}
 
 	//now load and parse the animation.cfg, animevents.cfg and set the animFileIndex
-	ent->client->clientInfo.animFileIndex = G_ParseAnimFileSet(strippedName, modelName);
+	ent->client->clientInfo.animFileIndex = G_ParseAnimFileSet(strippedName, modelName, npcType);
 
 	if (ent->client->clientInfo.animFileIndex<0)
 	{
@@ -1369,7 +1381,7 @@ void NPC_PrecacheAnimationCFG( const char *NPC_type )
 					//must copy data out of this pointer into a different part of memory because the funcs we're about to call will call COM_ParseExt
 					Q_strncpyz( filename, value, sizeof( filename ) );
 
-					G_ParseAnimFileSet(strippedName, filename);
+					G_ParseAnimFileSet(strippedName, filename, NPC_type);
 					COM_EndParseSession(  );
 					return;
 				}
