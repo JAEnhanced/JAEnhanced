@@ -191,6 +191,7 @@ cvar_t *s_show;
 cvar_t *s_testsound;
 cvar_t *s_volume;
 cvar_t *s_volumeVoice;
+cvar_t *snd_mute_losefocus;
 
 typedef struct
 {
@@ -232,8 +233,12 @@ int			s_numChannels;			// Number of AL Sources == Num of Channels
 
 //#define DISPLAY_CLOSEST_ENVS		// Displays the closest env. zones (including the one the listener is in)
 
-#define DEFAULT_REF_DISTANCE		300.0f		// Default reference distance
-#define DEFAULT_VOICE_REF_DISTANCE	1500.0f		// Default voice reference distance
+#define EAX_REF_DISTANCE			300.0f
+#define EAX_VOICE_REF_DISTANCE		1500.0f		// retail JKA's reduced fall-off for voices
+#define FALLBACK_REF_DISTANCE		256.0f
+#define FALLBACK_MAX_DISTANCE		1506.0f
+#define FALLBACK_VOICE_REF_DISTANCE	768.0f
+#define FALLBACK_VOICE_MAX_DISTANCE	2018.0f
 
 int			s_UseOpenAL	= 0;	// Determines if using Open AL or the default software mixer
 
@@ -282,7 +287,6 @@ bool					s_bEALFileLoaded;		// Has an .eal file been loaded for the current leve
 bool					s_bInWater;				// Underwater effect currently active
 int						s_EnvironmentID;		// EAGLE ID of current environment
 LPEAXMANAGER			s_lpEAXManager;			// Pointer to EAXManager object
-HINSTANCE				s_hEAXManInst;			// Handle of EAXManager DLL
 EAXSet					s_eaxSet;				// EAXSet() function
 EAXGet					s_eaxGet;				// EAXGet() function
 EAXREVERBPROPERTIES		s_eaxLPCur;				// Current EAX Parameters
@@ -300,6 +304,34 @@ static void UpdateEAXListener();
 static void UpdateEAXBuffer(channel_t *ch);
 static void EALFileInit(const char *level);
 float CalcDistance(EMPOINT A, EMPOINT B);
+
+static void S_AL_SetSourceAttenuation(ALuint source, qboolean reducedAttenuation)
+{
+	if (s_bEAX)
+	{
+		alSourcef(source, AL_REFERENCE_DISTANCE, reducedAttenuation ? EAX_VOICE_REF_DISTANCE : EAX_REF_DISTANCE);
+	}
+	else if (reducedAttenuation)
+	{
+		alSourcef(source, AL_REFERENCE_DISTANCE, FALLBACK_VOICE_REF_DISTANCE);
+		alSourcef(source, AL_MAX_DISTANCE, FALLBACK_VOICE_MAX_DISTANCE);
+	}
+	else
+	{
+		alSourcef(source, AL_REFERENCE_DISTANCE, FALLBACK_REF_DISTANCE);
+		alSourcef(source, AL_MAX_DISTANCE, FALLBACK_MAX_DISTANCE);
+	}
+}
+
+// OutputDebugString only exists on Windows; other platforms print to stdout.
+static void S_AL_DebugPrint(const char *msg)
+{
+#ifdef _WIN32
+	OutputDebugString(msg);
+#else
+	printf("%s", msg);
+#endif
+}
 
 void Normalize(EAXVECTOR *v)
 {
@@ -465,6 +497,7 @@ void S_Init( void ) {
 	s_testsound         = Cvar_Get( "s_testsound",         "0",       CVAR_CHEAT );
 	s_volume            = Cvar_Get( "s_volume",            "0.5",     CVAR_ARCHIVE );
 	s_volumeVoice       = Cvar_Get( "s_volumeVoice",       "1.0",     CVAR_ARCHIVE );
+	snd_mute_losefocus  = Cvar_Get( "snd_mute_losefocus",  "1",       CVAR_ARCHIVE );
 
 	MP3_InitCvars();
 
@@ -490,21 +523,30 @@ void S_Init( void ) {
 
 	if (s_UseOpenAL)
 	{
-		int i, j;
-
-		ALCdevice *ALCDevice = alcOpenDevice((ALubyte*)"DirectSound3D");
-		if (!ALCDevice)
-			return;
-
+#if defined(_WIN32)
+		ALCdevice *ALCDevice = alcOpenDevice("DirectSound3D");
+#else
+		ALCdevice *ALCDevice = alcOpenDevice(NULL);
+#endif
 		//Create context(s)
-		ALCcontext *ALCContext = alcCreateContext(ALCDevice, NULL);
-		if (!ALCContext)
-			return;
+		ALCcontext *ALCContext = ALCDevice ? alcCreateContext(ALCDevice, NULL) : NULL;
 
 		//Set active context
-		alcMakeContextCurrent(ALCContext);
-		if (alcGetError(ALCDevice) != ALC_NO_ERROR)
-			return;
+		if (!ALCContext || !alcMakeContextCurrent(ALCContext) || alcGetError(ALCDevice) != ALC_NO_ERROR)
+		{
+			Com_Printf(S_COLOR_YELLOW "WARNING: OpenAL initialization failed, using the software mixer\n");
+			alcMakeContextCurrent(NULL);
+			if (ALCContext)
+				alcDestroyContext(ALCContext);
+			if (ALCDevice)
+				alcCloseDevice(ALCDevice);
+			s_UseOpenAL = 0;
+		}
+	}
+
+	if (s_UseOpenAL)
+	{
+		int i, j;
 
 		s_soundStarted = 1;
 		s_soundMuted = qtrue;
@@ -525,6 +567,7 @@ void S_Init( void ) {
 		alListenerfv(AL_ORIENTATION,listenerOri);
 
 		InitEAXManager();
+		alDistanceModel(s_bEAX ? AL_INVERSE_DISTANCE_CLAMPED : AL_LINEAR_DISTANCE_CLAMPED);
 
 		memset(s_channels, 0, sizeof(s_channels));
 
@@ -539,7 +582,7 @@ void S_Init( void ) {
 				// Reached limit of sources
 				break;
 			}
-			alSourcef(s_channels[i].alSource, AL_REFERENCE_DISTANCE, DEFAULT_REF_DISTANCE);
+			S_AL_SetSourceAttenuation(s_channels[i].alSource, qfalse);
 			if (alGetError() != AL_NO_ERROR)
 			{
 				break;
@@ -555,18 +598,23 @@ void S_Init( void ) {
 				// Without this call reverb sends from the sources will attenuate too quickly
 				// with distance, especially for the non-primary reverb zones.
 
-				unsigned long ulFlags = 0;
+				uint32_t ulFlags = 0;
 
 				if (s_eaxSet(&EAXPROPERTYID_EAX40_Source, EAXSOURCE_FLAGS,
 							s_channels[i].alSource, &ulFlags, sizeof(ulFlags))!=AL_NO_ERROR)
 				{
-#ifdef _WIN32
-					OutputDebugString("Failed to to remove Source flags\n");
-#endif
+					S_AL_DebugPrint("Failed to to remove Source flags\n");
 				}
 			}
 
 			s_numChannels++;
+		}
+
+		if (s_numChannels > 0 && alIsExtensionPresent("AL_SOFT_direct_channels") == AL_TRUE)
+		{
+			// Keep stereo music on the device's front-left/front-right channels.
+			const ALenum directChannels = alGetEnumValue("AL_DIRECT_CHANNELS_SOFT");
+			alSourcei(s_channels[0].alSource, directChannels, AL_TRUE);
 		}
 
 		// Generate AL Buffers for streaming audio playback (used for MP3s)
@@ -978,18 +1026,18 @@ static void EALFileInit(const char *level)
 
 	if (s_bEALFileLoaded)
 	{
-		s_lLastEnvUpdate = timeGetTime();
+		s_lLastEnvUpdate = Sys_Milliseconds();
 	}
 	else
 	{
 		// Mute reverbs if no EAL file is found
 		if ((s_bEAX)&&(s_eaxSet))
 		{
-			long lRoom = -10000;
+			int32_t lRoom = -10000;
 			for (int i = 0; i < s_NumFXSlots; i++)
 			{
 				s_eaxSet(&s_FXSlotInfo[i].FXSlotGuid, EAXREVERB_ROOM, NULL,
-					&lRoom, sizeof(long));
+					&lRoom, sizeof(lRoom));
 			}
 		}
 	}
@@ -1523,6 +1571,11 @@ void S_StartSound(const vec3_t origin, int entityNum, soundChannel_t entchannel,
 	/*const*/ sfx_t *sfx;
 
 	if ( !s_soundStarted || s_soundMuted ) {
+		return;
+	}
+
+	// Sounds started while muted would all play at once when the window comes back.
+	if ( (com_minimized->integer || com_unfocused->integer) && snd_mute_losefocus->integer ) {
 		return;
 	}
 
@@ -2868,25 +2921,25 @@ void S_Update_(void) {
 				if (ch->entchannel == CHAN_VOICE)
 				{
 					// Reduced fall-off (Large Reference Distance), affected by Voice Volume
-					alSourcef(s_channels[source].alSource, AL_REFERENCE_DISTANCE, DEFAULT_VOICE_REF_DISTANCE);
+					S_AL_SetSourceAttenuation(s_channels[source].alSource, qtrue);
 					alSourcef(s_channels[source].alSource, AL_GAIN, ((float)(ch->master_vol) * s_volumeVoice->value) / 255.0f);
 				}
 				else if (ch->entchannel == CHAN_VOICE_ATTEN)
 				{
 					// Normal fall-off, affected by Voice Volume
-					alSourcef(s_channels[source].alSource, AL_REFERENCE_DISTANCE, DEFAULT_REF_DISTANCE);
+					S_AL_SetSourceAttenuation(s_channels[source].alSource, qfalse);
 					alSourcef(s_channels[source].alSource, AL_GAIN, ((float)(ch->master_vol) * s_volumeVoice->value) / 255.0f);
 				}
 				else if (ch->entchannel == CHAN_LESS_ATTEN)
 				{
 					// Reduced fall-off, affected by Sound Effect Volume
-					alSourcef(s_channels[source].alSource, AL_REFERENCE_DISTANCE, DEFAULT_VOICE_REF_DISTANCE);
+					S_AL_SetSourceAttenuation(s_channels[source].alSource, qtrue);
 					alSourcef(s_channels[source].alSource, AL_GAIN, ((float)(ch->master_vol) * s_volume->value) / 255.f);
 				}
 				else
 				{
 					// Normal fall-off, affect by Sound Effect Volume
-					alSourcef(s_channels[source].alSource, AL_REFERENCE_DISTANCE, DEFAULT_REF_DISTANCE);
+					S_AL_SetSourceAttenuation(s_channels[source].alSource, qfalse);
 					alSourcef(s_channels[source].alSource, AL_GAIN, ((float)(ch->master_vol) * s_volume->value) / 255.f);
 				}
 			}
@@ -2978,7 +3031,7 @@ void S_Update_(void) {
 					if (ch->thesfx->lipSyncData)
 					{
 						// Record start time for Lip-syncing
-						s_channels[source].iStartTime = timeGetTime();
+						s_channels[source].iStartTime = Sys_Milliseconds();
 
 						// Prepare lipsync value(s)
 						s_entityWavVol[ ch->entnum ] = ch->thesfx->lipSyncData[0];
@@ -3015,7 +3068,7 @@ void S_Update_(void) {
 					if (ch->thesfx->lipSyncData)
 					{
 						// Record start time for Lip-syncing
-						s_channels[source].iStartTime = timeGetTime();
+						s_channels[source].iStartTime = Sys_Milliseconds();
 
 						// Prepare lipsync value(s)
 						s_entityWavVol[ ch->entnum ] = ch->thesfx->lipSyncData[0];
@@ -3025,7 +3078,7 @@ void S_Update_(void) {
 #ifdef _DEBUG
 						char szString[256];
 						sprintf(szString, "Missing lip-sync info. for %s\n", ch->thesfx->sSoundName);
-						OutputDebugString(szString);
+						S_AL_DebugPrint(szString);
 #endif
 					}
 				}
@@ -3182,7 +3235,7 @@ void UpdateSingleShotSounds()
 										{
 #ifdef _DEBUG
 											sprintf(szString, "Missing lip-sync info. for %s\n", ch->thesfx->sSoundName);
-											OutputDebugString(szString);
+											S_AL_DebugPrint(szString);
 #endif
 										}
 									}
@@ -3236,7 +3289,7 @@ void UpdateSingleShotSounds()
 #ifdef _DEBUG
 						char szString[256];
 						sprintf(szString,"[%d] Restarting playback of single-shot streaming MP3 sample - still have %d bytes to decode\n", i, ch->MP3StreamHeader.iSourceBytesRemaining);
-						OutputDebugString(szString);
+						S_AL_DebugPrint(szString);
 #endif
 					}
 				}
@@ -3413,11 +3466,11 @@ void UpdateLoopingSounds()
 			alSourcei(s_channels[source].alSource, AL_SOURCE_RELATIVE, ch->fixed_origin ? AL_TRUE : AL_FALSE);
 			if (ch->entchannel == CHAN_LESS_ATTEN)
 			{	// Reduced fall-off
-				alSourcef(s_channels[source].alSource, AL_REFERENCE_DISTANCE, DEFAULT_VOICE_REF_DISTANCE);
+				S_AL_SetSourceAttenuation(s_channels[source].alSource, qtrue);
 			}
 			else
 			{
-				alSourcef(s_channels[source].alSource, AL_REFERENCE_DISTANCE, DEFAULT_REF_DISTANCE);
+				S_AL_SetSourceAttenuation(s_channels[source].alSource, qfalse);
 			}
 			if (s_bEALFileLoaded)
 				UpdateEAXBuffer(ch);
@@ -3467,7 +3520,7 @@ void AL_UpdateRawSamples()
 		size = (s_rawend - s_paintedtime)<<2;
 		if (size > (MAX_RAW_SAMPLES<<2))
 		{
-			OutputDebugString("UpdateRawSamples :- Raw Sample buffer has overflowed !!!\n");
+			S_AL_DebugPrint("UpdateRawSamples :- Raw Sample buffer has overflowed !!!\n");
 			size = MAX_RAW_SAMPLES<<2;
 			s_paintedtime = s_rawend - MAX_RAW_SAMPLES;
 		}
@@ -3522,22 +3575,8 @@ void AL_UpdateRawSamples()
 		alGetSourcei(s_channels[0].alSource, AL_SOURCE_STATE, &state);
 		if (state != AL_PLAYING)
 		{
-			// Stopped playing ... due to buffer underrun
-			// Unqueue any buffers still on the Source (they will be PROCESSED), and restart playback
-			alGetSourcei(s_channels[0].alSource, AL_BUFFERS_PROCESSED, &processed);
-			while (processed)
-			{
-				alSourceUnqueueBuffers(s_channels[0].alSource, 1, &buffer);
-				processed--;
-				alGetBufferi(buffer, AL_SIZE, &size);
-				alDeleteBuffers(1, &buffer);
-
-				// Update sg.soundtime (+= number of samples played (number of bytes / 4))
-				s_soundtime += (size >> 2);
-			}
-
 #ifdef _DEBUG
-			OutputDebugString("Restarting / Starting playback of Raw Samples\n");
+			S_AL_DebugPrint("Restarting / Starting playback of Raw Samples\n");
 #endif
 			alSourcePlay(s_channels[0].alSource);
 		}
@@ -3545,7 +3584,7 @@ void AL_UpdateRawSamples()
 
 #ifdef _DEBUG
 	if (alGetError() != AL_NO_ERROR)
-		OutputDebugString("OAL Error : UpdateRawSamples\n");
+		S_AL_DebugPrint("OAL Error : UpdateRawSamples\n");
 #endif
 }
 #endif
@@ -3592,12 +3631,7 @@ void S_SetLipSyncs()
 #endif
 #endif
 
-#ifdef _WIN32
-	currentTime = timeGetTime();
-#else
-    // FIXME: alternative to timeGetTime ?
-    currentTime = 0;
-#endif
+	currentTime = Sys_Milliseconds();
 
 	memset(s_entityWavVol, 0, sizeof(s_entityWavVol));
 
@@ -4085,7 +4119,10 @@ static qboolean S_StartBackgroundTrack_Actual( MusicInfo_t *pMusicInfo, qboolean
 	char	dump[16];
 	char	name[MAX_QPATH];
 
-	Q_strncpyz( sMusic_BackgroundLoop, loop, sizeof( sMusic_BackgroundLoop ));
+	if ( loop != sMusic_BackgroundLoop )
+	{// don't copy into yourself
+		Q_strncpyz( sMusic_BackgroundLoop, loop, sizeof( sMusic_BackgroundLoop ));
+	}
 
 	Q_strncpyz( name, intro, sizeof( name ) - 4 );	// this seems to be so that if the filename hasn't got an extension
 													//	but doesn't have the room to append on either then you'll just
@@ -5318,7 +5355,6 @@ qboolean SND_RegisterAudio_LevelLoadEnd(qboolean bDeleteEverythingNotUsedThisLev
 void InitEAXManager()
 {
 #ifdef USE_OPENAL
-	LPEAXMANAGERCREATE lpEAXManagerCreateFn;
 	EAXFXSLOTPROPERTIES FXSlotProp;
 	GUID	Effect;
 	GUID	FXSlotGuids[4];
@@ -5327,7 +5363,7 @@ void InitEAXManager()
 	s_bEALFileLoaded = false;
 
 	// Check for EAX 4.0 support
-	s_bEAX = alIsExtensionPresent((ALubyte*)"EAX4.0");
+	s_bEAX = alIsExtensionPresent("EAX4.0");
 
 	if (s_bEAX)
 	{
@@ -5336,7 +5372,7 @@ void InitEAXManager()
 	else
 	{
 		// Support for EAXUnified (automatic translation of EAX 4.0 calls into EAX 3.0)
-		if ((alIsExtensionPresent((ALubyte*)"EAX3.0")) && (alIsExtensionPresent((ALubyte*)"EAX4.0Emulated")))
+		if ((alIsExtensionPresent("EAX3.0")) && (alIsExtensionPresent("EAX4.0Emulated")))
 		{
 			s_bEAX = AL_TRUE;
 			Com_Printf("Found EAX 4.0 EMULATION support\n");
@@ -5345,82 +5381,69 @@ void InitEAXManager()
 
 	if (s_bEAX)
 	{
-		s_eaxSet = (EAXSet)alGetProcAddress((ALubyte*)"EAXSet");
+		s_eaxSet = (EAXSet)alGetProcAddress("EAXSet");
 		if (s_eaxSet == NULL)
 			s_bEAX = false;
-		s_eaxGet = (EAXGet)alGetProcAddress((ALubyte*)"EAXGet");
+		s_eaxGet = (EAXGet)alGetProcAddress("EAXGet");
 		if (s_eaxGet == NULL)
 			s_bEAX = false;
 	}
 
-	// If we have detected EAX support, then try and load the EAX Manager DLL
+	// If we have detected EAX support, initialize the EAX Manager.
 	if (s_bEAX)
 	{
-		s_hEAXManInst = LoadLibrary("EAXMan.dll");
-		if (s_hEAXManInst)
+		if (EaxManagerCreate(&s_lpEAXManager)==EM_OK)
 		{
-			lpEAXManagerCreateFn = (LPEAXMANAGERCREATE)GetProcAddress(s_hEAXManInst, "EaxManagerCreate");
-			if (lpEAXManagerCreateFn)
+			Com_Printf("Using EalMan EAX Manager\n");
+
+			// Configure our EAX 4.0 Effect Slots
+			s_NumFXSlots = 0;
+			for (i = 0; i < EAX_MAX_FXSLOTS; i++)
 			{
-				if (lpEAXManagerCreateFn(&s_lpEAXManager)==EM_OK)
+				s_FXSlotInfo[i].FXSlotGuid = EAX_NULL_GUID;
+				s_FXSlotInfo[i].lEnvID = -1;
+			}
+
+			FXSlotGuids[0] = EAXPROPERTYID_EAX40_FXSlot0;
+			FXSlotGuids[1] = EAXPROPERTYID_EAX40_FXSlot1;
+			FXSlotGuids[2] = EAXPROPERTYID_EAX40_FXSlot2;
+			FXSlotGuids[3] = EAXPROPERTYID_EAX40_FXSlot3;
+
+			// For each effect slot, try and load a reverb and lock the slot
+			FXSlotProp.guidLoadEffect = EAX_REVERB_EFFECT;
+			FXSlotProp.lVolume = 0;
+			FXSlotProp.lLock = EAXFXSLOT_LOCKED;
+			FXSlotProp.ulFlags = EAXFXSLOTFLAGS_ENVIRONMENT;
+
+			for (i = 0; i < EAX_MAX_FXSLOTS; i++)
+			{
+				if (s_eaxSet(&FXSlotGuids[i], EAXFXSLOT_ALLPARAMETERS, NULL, &FXSlotProp, sizeof(EAXFXSLOTPROPERTIES))==AL_NO_ERROR)
 				{
-					// Configure our EAX 4.0 Effect Slots
-
-					s_NumFXSlots = 0;
-					for (i = 0; i < EAX_MAX_FXSLOTS; i++)
+					// We can use this slot
+					s_FXSlotInfo[s_NumFXSlots].FXSlotGuid = FXSlotGuids[i];
+					s_NumFXSlots++;
+				}
+				else
+				{
+					// If this slot already contains a reverb, then we will use it anyway (Slot 0 will
+					// be in this category).  (It probably means that Slot 0 is locked)
+					if (s_eaxGet(&FXSlotGuids[i], EAXFXSLOT_LOADEFFECT, NULL, &Effect, sizeof(GUID))==AL_NO_ERROR)
 					{
-						s_FXSlotInfo[i].FXSlotGuid = EAX_NULL_GUID;
-						s_FXSlotInfo[i].lEnvID = -1;
-					}
-
-					FXSlotGuids[0] = EAXPROPERTYID_EAX40_FXSlot0;
-					FXSlotGuids[1] = EAXPROPERTYID_EAX40_FXSlot1;
-					FXSlotGuids[2] = EAXPROPERTYID_EAX40_FXSlot2;
-					FXSlotGuids[3] = EAXPROPERTYID_EAX40_FXSlot3;
-
-					// For each effect slot, try and load a reverb and lock the slot
-					FXSlotProp.guidLoadEffect = EAX_REVERB_EFFECT;
-					FXSlotProp.lVolume = 0;
-					FXSlotProp.lLock = EAXFXSLOT_LOCKED;
-					FXSlotProp.ulFlags = EAXFXSLOTFLAGS_ENVIRONMENT;
-
-					for (i = 0; i < EAX_MAX_FXSLOTS; i++)
-					{
-						if (s_eaxSet(&FXSlotGuids[i], EAXFXSLOT_ALLPARAMETERS, NULL, &FXSlotProp, sizeof(EAXFXSLOTPROPERTIES))==AL_NO_ERROR)
+						if (memcmp(&Effect, &EAX_REVERB_EFFECT, sizeof(GUID)) == 0)
 						{
 							// We can use this slot
+							// Make sure the environment flag is on
+							s_eaxSet(&FXSlotGuids[i], EAXFXSLOT_FLAGS, NULL, &FXSlotProp.ulFlags, sizeof(FXSlotProp.ulFlags));
 							s_FXSlotInfo[s_NumFXSlots].FXSlotGuid = FXSlotGuids[i];
 							s_NumFXSlots++;
 						}
-						else
-						{
-							// If this slot already contains a reverb, then we will use it anyway (Slot 0 will
-							// be in this category).  (It probably means that Slot 0 is locked)
-							if (s_eaxGet(&FXSlotGuids[i], EAXFXSLOT_LOADEFFECT, NULL, &Effect, sizeof(GUID))==AL_NO_ERROR)
-							{
-								if (Effect == EAX_REVERB_EFFECT)
-								{
-									// We can use this slot
-									// Make sure the environment flag is on
-									s_eaxSet(&FXSlotGuids[i], EAXFXSLOT_FLAGS, NULL, &FXSlotProp.ulFlags, sizeof(unsigned long));
-									s_FXSlotInfo[s_NumFXSlots].FXSlotGuid = FXSlotGuids[i];
-									s_NumFXSlots++;
-								}
-							}
-						}
 					}
-
-					return;
 				}
 			}
-		}
-	}
 
-	// If the EAXManager library was loaded (and there was a problem), then unload it
-	if (s_hEAXManInst)
-	{
-		FreeLibrary(s_hEAXManInst);
-		s_hEAXManInst = NULL;
+			return;
+		}
+		Com_Printf("Warning: Failed to initialize the EAX Manager\n");
 	}
 
 	s_lpEAXManager = NULL;
@@ -5436,19 +5459,14 @@ void InitEAXManager()
 void ReleaseEAXManager()
 {
 #ifdef USE_OPENAL
-	s_bEAX = false;
-
+	// UnloadEALFile only frees the data set while EAX is still enabled.
 	UnloadEALFile();
+	s_bEAX = false;
 
 	if (s_lpEAXManager)
 	{
 		s_lpEAXManager->Release();
 		s_lpEAXManager = NULL;
-	}
-	if (s_hEAXManInst)
-	{
-		FreeLibrary(s_hEAXManInst);
-		s_hEAXManInst = NULL;
 	}
 #endif
 }
@@ -5488,7 +5506,11 @@ static bool LoadEALFile(char *szEALFilename)
 
 	if ((ealData) && (result != -1))
 	{
-		hr = s_lpEAXManager->LoadDataSet(ealData, EMFLAG_LOADFROMMEMORY);
+		// The EAX Manager reads the data set size from the RIFF header.
+		const byte *riff = (const byte *)ealData;
+		hr = EM_FILEINVALID;
+		if (result >= 8 && (riff[4] | (riff[5] << 8) | (riff[6] << 16) | ((unsigned)riff[7] << 24)) <= (unsigned)result - 8)
+			hr = s_lpEAXManager->LoadDataSet(ealData, EMFLAG_LOADFROMMEMORY);
 
 		// Unload EAL file
 		FS_FreeFile (ealData);
@@ -5537,10 +5559,10 @@ static bool LoadEALFile(char *szEALFilename)
 										{
 											lNumInstA = lNumInstB = 0;
 
-											sprintf(szAperture,"Aperture%da",i);
+											Com_sprintf(szAperture, sizeof(szAperture), "Aperture%lda", i);
 											if ((s_lpEAXManager->GetSourceID(szAperture, &lID)==EM_OK) && (s_lpEAXManager->GetSourceNumInstances(lID, &lNumInstA)==EM_OK))
 											{
-												sprintf(szAperture,"Aperture%db",i);
+												Com_sprintf(szAperture, sizeof(szAperture), "Aperture%ldb", i);
 												s_lpEAXManager->GetSourceID(szAperture, &lID);
 												s_lpEAXManager->GetSourceNumInstances(lID, &lNumInstB);
 
@@ -5593,7 +5615,7 @@ static bool LoadEALFile(char *szEALFilename)
 			i = 0;
 			while (true)
 			{
-				sprintf(szAperture, "Aperture%da", i);
+				Com_sprintf(szAperture, sizeof(szAperture), "Aperture%lda", i);
 				if (s_lpEAXManager->GetSourceID(szAperture, &lID)==EM_OK)
 				{
 					if (s_lpEAXManager->GetSourceNumInstances(lID, &lNumInst)==EM_OK)
@@ -5649,7 +5671,7 @@ static bool LoadEALFile(char *szEALFilename)
 
 				if (bValid)
 				{
-					sprintf(szAperture, "Aperture%db", i);
+					Com_sprintf(szAperture, sizeof(szAperture), "Aperture%ldb", i);
 					if (s_lpEAXManager->GetSourceID(szAperture, &lID)==EM_OK)
 					{
 						if (s_lpEAXManager->GetSourceNumInstances(lID, &lNumInst)==EM_OK)
@@ -5777,7 +5799,7 @@ static void UpdateEAXListener()
 	float flDistance, flNearest;
 	EAXREVERBPROPERTIES Reverb;
 	bool bFound;
-	long lVolume;
+	int32_t lVolume;
 	long lCurTime;
 	channel_t	*ch;
 	EAXVECTOR	LR, LP1, LP2, Pan;
@@ -5789,7 +5811,7 @@ static void UpdateEAXListener()
 	if ((!s_lpEAXManager) || (!s_bEAX))
 		return;
 
-	lCurTime = timeGetTime();
+	lCurTime = Sys_Milliseconds();
 
 	if ((s_lLastEnvUpdate + ENV_UPDATE_RATE) < lCurTime)
 	{
@@ -5933,8 +5955,8 @@ static void UpdateEAXListener()
 
 				// Mute it
 				lVolume = -10000;
-				if (s_eaxSet(&s_FXSlotInfo[i].FXSlotGuid, EAXFXSLOT_VOLUME, NULL, &lVolume, sizeof(long))!=AL_NO_ERROR)
-					OutputDebugString("Failed to Mute FX Slot\n");
+				if (s_eaxSet(&s_FXSlotInfo[i].FXSlotGuid, EAXFXSLOT_VOLUME, NULL, &lVolume, sizeof(lVolume))!=AL_NO_ERROR)
+					S_AL_DebugPrint("Failed to Mute FX Slot\n");
 
 				// If any source is sending to this Slot ID then we need to stop them sending to the slot
 				for (j = 1; j < s_numChannels; j++)
@@ -5943,7 +5965,7 @@ static void UpdateEAXListener()
 					{
 						if (s_eaxSet(&EAXPROPERTYID_EAX40_Source, EAXSOURCE_ACTIVEFXSLOTID, s_channels[j].alSource, (void*)&EAX_NULL_GUID, sizeof(GUID))!=AL_NO_ERROR)
 						{
-							OutputDebugString("Failed to set Source ActiveFXSlotID to NULL\n");
+							S_AL_DebugPrint("Failed to set Source ActiveFXSlotID to NULL\n");
 						}
 
 						s_channels[j].lSlotID = -1;
@@ -6028,13 +6050,13 @@ static void UpdateEAXListener()
 
 								// Get Source Environment point
 								if (s_lpEAXManager->GetListenerDynamicAttributes(0, &EMSourcePoint, &lSourceID, 0)!=EM_OK)
-									OutputDebugString("Failed to get environment zone for Source\n");
+									S_AL_DebugPrint("Failed to get environment zone for Source\n");
 
 								if (lSourceID == i)
 								{
 									if (s_eaxSet(&EAXPROPERTYID_EAX40_Source, EAXSOURCE_ACTIVEFXSLOTID, ch->alSource, (void*)&(s_FXSlotInfo[i].FXSlotGuid), sizeof(GUID))!=AL_NO_ERROR)
 									{
-										OutputDebugString("Failed to set Source ActiveFXSlotID to new environment\n");
+										S_AL_DebugPrint("Failed to set Source ActiveFXSlotID to new environment\n");
 									}
 
 									ch->lSlotID = i;
@@ -6150,10 +6172,10 @@ static void UpdateEAXListener()
 				Pan.z *= -flMagnitude;
 
 				if (s_eaxSet(&s_FXSlotInfo[i].FXSlotGuid, EAXREVERB_REVERBPAN, NULL, &Pan, sizeof(EAXVECTOR))!=AL_NO_ERROR)
-					OutputDebugString("Failed to set Listener Reverb Pan\n");
+					S_AL_DebugPrint("Failed to set Listener Reverb Pan\n");
 
 				if (s_eaxSet(&s_FXSlotInfo[i].FXSlotGuid, EAXREVERB_REFLECTIONSPAN, NULL, &Pan, sizeof(EAXVECTOR))!=AL_NO_ERROR)
-					OutputDebugString("Failed to set Listener Reflections Pan\n");
+					S_AL_DebugPrint("Failed to set Listener Reflections Pan\n");
 			}
 			else
 			{
@@ -6201,18 +6223,18 @@ static void UpdateEAXListener()
 				Pan.z *= flMagnitude;
 
 				if (s_eaxSet(&s_FXSlotInfo[i].FXSlotGuid, EAXREVERB_REVERBPAN, NULL, &Pan, sizeof(EAXVECTOR))!=AL_NO_ERROR)
-					OutputDebugString("Failed to set Reverb Pan\n");
+					S_AL_DebugPrint("Failed to set Reverb Pan\n");
 
 				if (s_eaxSet(&s_FXSlotInfo[i].FXSlotGuid, EAXREVERB_REFLECTIONSPAN, NULL, &Pan, sizeof(EAXVECTOR))!=AL_NO_ERROR)
-					OutputDebugString("Failed to set Reflections Pan\n");
+					S_AL_DebugPrint("Failed to set Reflections Pan\n");
 			}
 		}
 
 		lVolume = 0;
 		for (i = 0; i < s_NumFXSlots; i++)
 		{
-			if (s_eaxSet(&s_FXSlotInfo[i].FXSlotGuid, EAXFXSLOT_VOLUME, NULL, &lVolume, sizeof(long))!=AL_NO_ERROR)
-				OutputDebugString("Failed to set FX Slot Volume to 0\n");
+			if (s_eaxSet(&s_FXSlotInfo[i].FXSlotGuid, EAXFXSLOT_VOLUME, NULL, &lVolume, sizeof(lVolume))!=AL_NO_ERROR)
+				S_AL_DebugPrint("Failed to set FX Slot Volume to 0\n");
 		}
 	}
 
@@ -6279,7 +6301,7 @@ static void UpdateEAXBuffer(channel_t *ch)
 		}
 	}
 
-	long lExclusion;
+	int32_t lExclusion;
 
 	// Just determine what environment the source is in
 	if (s_lpEAXManager->GetListenerDynamicAttributes(0, &EMSourcePoint, &lSourceID, 0)==EM_OK)
@@ -6294,7 +6316,7 @@ static void UpdateEAXBuffer(channel_t *ch)
 				{
 					// Set this
 					if (s_eaxSet(&EAXPROPERTYID_EAX40_Source, EAXSOURCE_ACTIVEFXSLOTID, ch->alSource, &s_FXSlotInfo[i].FXSlotGuid, sizeof(GUID))!=AL_NO_ERROR)
-						OutputDebugString("UpdateEAXBuffer = failed to set ActiveFXSlotID\n");
+						S_AL_DebugPrint("UpdateEAXBuffer = failed to set ActiveFXSlotID\n");
 
 					ch->lSlotID = i;
 				}
@@ -6305,21 +6327,21 @@ static void UpdateEAXBuffer(channel_t *ch)
 	}
 	else
 	{
-		OutputDebugString("UpdateEAXBuffer::Failed to get Source environment zone\n");
+		S_AL_DebugPrint("UpdateEAXBuffer::Failed to get Source environment zone\n");
 	}
 
 	// Add some Exclusion to sounds that are not located in the Listener's environment
 	if (s_FXSlotInfo[ch->lSlotID].lEnvID == s_EnvironmentID)
 	{
 		lExclusion = 0;
-		if (s_eaxSet(&EAXPROPERTYID_EAX40_Source, EAXSOURCE_EXCLUSION, ch->alSource, &lExclusion, sizeof(long))!=AL_NO_ERROR)
-			OutputDebugString("UpdateEAXBuffer : Failed to set exclusion to 0\n");
+		if (s_eaxSet(&EAXPROPERTYID_EAX40_Source, EAXSOURCE_EXCLUSION, ch->alSource, &lExclusion, sizeof(lExclusion))!=AL_NO_ERROR)
+			S_AL_DebugPrint("UpdateEAXBuffer : Failed to set exclusion to 0\n");
 	}
 	else
 	{
 		lExclusion = -1000;
-		if (s_eaxSet(&EAXPROPERTYID_EAX40_Source, EAXSOURCE_EXCLUSION, ch->alSource, &lExclusion, sizeof(long))!=AL_NO_ERROR)
-			OutputDebugString("UpdateEAXBuffer : Failed to set exclusion to -1000\n");
+		if (s_eaxSet(&EAXPROPERTYID_EAX40_Source, EAXSOURCE_EXCLUSION, ch->alSource, &lExclusion, sizeof(lExclusion))!=AL_NO_ERROR)
+			S_AL_DebugPrint("UpdateEAXBuffer : Failed to set exclusion to -1000\n");
 	}
 
 	if ((ch->entchannel == CHAN_VOICE) || (ch->entchannel == CHAN_VOICE_ATTEN) || (ch->entchannel == CHAN_VOICE_GLOBAL))
