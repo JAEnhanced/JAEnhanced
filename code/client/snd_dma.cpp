@@ -372,6 +372,14 @@ const GUID EAX_REVERB_EFFECT = { 0xcf95c8f, 0xa3cc, 0x4849, { 0xb0, 0xb6, 0x83, 
 
 #endif /* USE_OPENAL */
 
+static qboolean S_UsingOpenAL( void ) {
+#ifdef USE_OPENAL
+	return (qboolean)s_UseOpenAL;
+#else
+	return qfalse;
+#endif
+}
+
 // instead of clearing a whole channel_t struct, we're going to skip the MP3SlidingDecodeBuffer[] buffer in the middle...
 //
 #ifndef offsetof
@@ -1575,7 +1583,8 @@ void S_StartSound(const vec3_t origin, int entityNum, soundChannel_t entchannel,
 	}
 
 	// Sounds started while muted would all play at once when the window comes back.
-	if ( (com_minimized->integer || com_unfocused->integer) && snd_mute_losefocus->integer ) {
+	// OpenAL keeps playing while muted, so it doesn't need this.
+	if ( (com_minimized->integer || com_unfocused->integer) && snd_mute_losefocus->integer && !S_UsingOpenAL() ) {
 		return;
 	}
 
