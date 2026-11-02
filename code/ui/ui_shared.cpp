@@ -1058,6 +1058,33 @@ Hacks to fix issues with Team Arena menu scripts
 ===============
 */
 static void Item_ApplyHacks( itemDef_t *item ) {
+#ifndef USE_OPENAL
+	// Disable the EAX option in builds without the OpenAL backend
+	if ( item->type == ITEM_TYPE_MULTI && item->cvar && !Q_stricmp( item->cvar, "s_UseOpenAL" ) ) {
+		if( item->parent )
+		{
+			menuDef_t *parent = (menuDef_t *)item->parent;
+			VectorSet4( parent->disableColor, 0.5f, 0.5f, 0.5f, 1.0f );
+			item->disabled = qtrue;
+			// Just in case it had focus
+			item->window.flags &= ~WINDOW_MOUSEOVER;
+			Com_Printf( "Disabling eax field because this build has no OpenAL support.\n");
+		}
+	}
+
+	if ( item->type == ITEM_TYPE_TEXT && item->window.name && !Q_stricmp( item->window.name, "eax_icon") && item->cvarTest && !Q_stricmp( item->cvarTest, "s_UseOpenAL" ) && item->enableCvar && (item->cvarFlags & CVAR_HIDE) ) {
+		if( item->parent )
+		{
+			menuDef_t *parent = (menuDef_t *)item->parent;
+			VectorSet4( parent->disableColor, 0.5f, 0.5f, 0.5f, 1.0f );
+			item->disabled = item->disabledHidden = qtrue;
+			// Just in case it had focus
+			item->window.flags &= ~WINDOW_MOUSEOVER;
+			Com_Printf( "Hiding eax_icon object because this build has no OpenAL support.\n");
+		}
+	}
+#endif
+
 	if ( item->type == ITEM_TYPE_MULTI && item->window.name && !Q_stricmp( item->window.name, "sound_quality") ) {
 		multiDef_t *multiPtr = (multiDef_t *)item->typeData;
 		int i;
