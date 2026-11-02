@@ -1175,6 +1175,28 @@ static void CG_PlayerAnimEventDo( centity_t *cent, animevent_t *animEvent )
 	}
 }
 
+// Model-specific events are tagged with the model directory, which NPC variants
+// such as stormtrooper2 share, so match on the model rather than the NPC_type
+static int CG_AnimEventModel( gentity_t *ent )
+{
+	if ( ent->playerModel < 0 || ent->playerModel >= ent->ghoul2.size() )
+	{
+		return -1;
+	}
+
+	char	modelDir[MAX_QPATH];
+	Q_strncpyz( modelDir, ent->ghoul2[ent->playerModel].mFileName, sizeof( modelDir ) );
+	char	*slash = strrchr( modelDir, '/' );
+	if ( !slash )
+	{
+		return -1;
+	}
+	*slash = 0;
+
+	hstring	modelName( Q_strlwr( COM_SkipPath( modelDir ) ) );
+	return modelName.handle();
+}
+
 static void CG_PlayerAnimEvents( int animFileIndex, qboolean torso, int oldFrame, int frame, int entNum )
 {
 	int		i;
@@ -1231,7 +1253,7 @@ static void CG_PlayerAnimEvents( int animFileIndex, qboolean torso, int oldFrame
 		}
 	}
 
-	hstring myModel = g_entities[entNum].NPC_type;		//apparently NPC_type is always the same as the model name???
+	const int myModel = CG_AnimEventModel( &g_entities[entNum] );
 
 	// Check for anim event
 	for ( i=0; i < MAX_ANIM_EVENTS; ++i )
@@ -1247,7 +1269,7 @@ static void CG_PlayerAnimEvents( int animFileIndex, qboolean torso, int oldFrame
 		}
 
 		match = qfalse;
-		if (animEvents[i].modelOnly==0 || animEvents[i].modelOnly==myModel.handle())
+		if (animEvents[i].modelOnly==0 || animEvents[i].modelOnly==myModel)
 		{
 			if ( animEvents[i].keyFrame == frame )
 			{//exact match

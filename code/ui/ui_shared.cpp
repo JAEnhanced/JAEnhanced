@@ -8089,6 +8089,21 @@ void Item_Slider_Paint(itemDef_t *item)
 
 /*
 =================
+UI_FrameAdjust
+
+Scale for per-step UI animation amounts relative to UI_TARGET_FPS
+=================
+*/
+static float UI_FrameAdjust( void )
+{
+	// frameTime spans the whole gap when a menu opens from gameplay, so cap it
+	const int frameTime = Com_Clampi( 0, UI_MAX_FRAMETIME, DC->frameTime );
+
+	return frameTime / (1000.0f / UI_TARGET_FPS);
+}
+
+/*
+=================
 Item_Paint
 =================
 */
@@ -8097,6 +8112,7 @@ static qboolean Item_Paint(itemDef_t *item, qboolean bDraw)
 	int		xPos,textWidth;
 	vec4_t red;
 	menuDef_t *parent;
+	const float tAdjust = UI_FrameAdjust();
 	red[0] = red[3] = 1;
 	red[1] = red[2] = 0;
 
@@ -8121,13 +8137,13 @@ static qboolean Item_Paint(itemDef_t *item, qboolean bDraw)
 		if (DC->realTime > item->window.nextTime)
 		{
 			float rx, ry, a, c, s, w, h;
-			item->window.nextTime = DC->realTime + item->window.offsetTime;
+			item->window.nextTime = DC->realTime + (item->window.offsetTime * tAdjust);
 			// translate
 			w = item->window.rectClient.w / 2;
 			h = item->window.rectClient.h / 2;
 			rx = item->window.rectClient.x + w - item->window.rectEffects.x;
 			ry = item->window.rectClient.y + h - item->window.rectEffects.y;
-			a = (float) (3 * M_PI / 180);
+			a = (float) (3 * M_PI / 180) * tAdjust;
   			c = cos(a);
 			s = sin(a);
 			item->window.rectClient.x = (rx * c - ry * s) + item->window.rectEffects.x - w;
@@ -8143,7 +8159,7 @@ static qboolean Item_Paint(itemDef_t *item, qboolean bDraw)
 		if (DC->realTime > item->window.nextTime)
 		{
 			int done = 0;
-			item->window.nextTime = DC->realTime + item->window.offsetTime;
+			item->window.nextTime = DC->realTime + (item->window.offsetTime * tAdjust);
 
 			// transition the x,y
 			if (item->window.rectClient.x == item->window.rectEffects.x)
@@ -8154,7 +8170,7 @@ static qboolean Item_Paint(itemDef_t *item, qboolean bDraw)
 			{
 				if (item->window.rectClient.x < item->window.rectEffects.x)
 				{
-					item->window.rectClient.x += item->window.rectEffects2.x;
+					item->window.rectClient.x += item->window.rectEffects2.x * tAdjust;
 					if (item->window.rectClient.x > item->window.rectEffects.x)
 					{
 						item->window.rectClient.x = item->window.rectEffects.x;
@@ -8163,7 +8179,7 @@ static qboolean Item_Paint(itemDef_t *item, qboolean bDraw)
 				}
 				else
 				{
-					item->window.rectClient.x -= item->window.rectEffects2.x;
+					item->window.rectClient.x -= item->window.rectEffects2.x * tAdjust;
 					if (item->window.rectClient.x < item->window.rectEffects.x)
 					{
 						item->window.rectClient.x = item->window.rectEffects.x;
@@ -8180,7 +8196,7 @@ static qboolean Item_Paint(itemDef_t *item, qboolean bDraw)
 			{
 				if (item->window.rectClient.y < item->window.rectEffects.y)
 				{
-					item->window.rectClient.y += item->window.rectEffects2.y;
+					item->window.rectClient.y += item->window.rectEffects2.y * tAdjust;
 					if (item->window.rectClient.y > item->window.rectEffects.y)
 					{
 						item->window.rectClient.y = item->window.rectEffects.y;
@@ -8189,7 +8205,7 @@ static qboolean Item_Paint(itemDef_t *item, qboolean bDraw)
 				}
 				else
 				{
-					item->window.rectClient.y -= item->window.rectEffects2.y;
+					item->window.rectClient.y -= item->window.rectEffects2.y * tAdjust;
 					if (item->window.rectClient.y < item->window.rectEffects.y)
 					{
 						item->window.rectClient.y = item->window.rectEffects.y;
@@ -8206,7 +8222,7 @@ static qboolean Item_Paint(itemDef_t *item, qboolean bDraw)
 			{
 				if (item->window.rectClient.w < item->window.rectEffects.w)
 				{
-					item->window.rectClient.w += item->window.rectEffects2.w;
+					item->window.rectClient.w += item->window.rectEffects2.w * tAdjust;
 					if (item->window.rectClient.w > item->window.rectEffects.w)
 					{
 						item->window.rectClient.w = item->window.rectEffects.w;
@@ -8215,7 +8231,7 @@ static qboolean Item_Paint(itemDef_t *item, qboolean bDraw)
 				}
 				else
 				{
-					item->window.rectClient.w -= item->window.rectEffects2.w;
+					item->window.rectClient.w -= item->window.rectEffects2.w * tAdjust;
 					if (item->window.rectClient.w < item->window.rectEffects.w)
 					{
 						item->window.rectClient.w = item->window.rectEffects.w;
@@ -8232,7 +8248,7 @@ static qboolean Item_Paint(itemDef_t *item, qboolean bDraw)
 			{
 				if (item->window.rectClient.h < item->window.rectEffects.h)
 				{
-					item->window.rectClient.h += item->window.rectEffects2.h;
+					item->window.rectClient.h += item->window.rectEffects2.h * tAdjust;
 					if (item->window.rectClient.h > item->window.rectEffects.h)
 					{
 						item->window.rectClient.h = item->window.rectEffects.h;
@@ -8241,7 +8257,7 @@ static qboolean Item_Paint(itemDef_t *item, qboolean bDraw)
 				}
 				else
 				{
-					item->window.rectClient.h -= item->window.rectEffects2.h;
+					item->window.rectClient.h -= item->window.rectEffects2.h * tAdjust;
 					if (item->window.rectClient.h < item->window.rectEffects.h)
 					{
 						item->window.rectClient.h = item->window.rectEffects.h;
@@ -8276,7 +8292,7 @@ static qboolean Item_Paint(itemDef_t *item, qboolean bDraw)
 			if (DC->realTime > item->window.nextTime)
 			{
 				int done = 0;
-				item->window.nextTime = DC->realTime + item->window.offsetTime;
+				item->window.nextTime = DC->realTime + (item->window.offsetTime * tAdjust);
 
 
 // transition the x,y,z max
@@ -8288,7 +8304,7 @@ static qboolean Item_Paint(itemDef_t *item, qboolean bDraw)
 				{
 					if (modelptr->g2maxs[0] < modelptr->g2maxs2[0])
 					{
-						modelptr->g2maxs[0] += modelptr->g2maxsEffect[0];
+						modelptr->g2maxs[0] += modelptr->g2maxsEffect[0] * tAdjust;
 						if (modelptr->g2maxs[0] > modelptr->g2maxs2[0])
 						{
 							modelptr->g2maxs[0] = modelptr->g2maxs2[0];
@@ -8297,7 +8313,7 @@ static qboolean Item_Paint(itemDef_t *item, qboolean bDraw)
 					}
 					else
 					{
-						modelptr->g2maxs[0] -= modelptr->g2maxsEffect[0];
+						modelptr->g2maxs[0] -= modelptr->g2maxsEffect[0] * tAdjust;
 						if (modelptr->g2maxs[0] < modelptr->g2maxs2[0])
 						{
 							modelptr->g2maxs[0] = modelptr->g2maxs2[0];
@@ -8314,7 +8330,7 @@ static qboolean Item_Paint(itemDef_t *item, qboolean bDraw)
 				{
 					if (modelptr->g2maxs[1] < modelptr->g2maxs2[1])
 					{
-						modelptr->g2maxs[1] += modelptr->g2maxsEffect[1];
+						modelptr->g2maxs[1] += modelptr->g2maxsEffect[1] * tAdjust;
 						if (modelptr->g2maxs[1] > modelptr->g2maxs2[1])
 						{
 							modelptr->g2maxs[1] = modelptr->g2maxs2[1];
@@ -8323,7 +8339,7 @@ static qboolean Item_Paint(itemDef_t *item, qboolean bDraw)
 					}
 					else
 					{
-						modelptr->g2maxs[1] -= modelptr->g2maxsEffect[1];
+						modelptr->g2maxs[1] -= modelptr->g2maxsEffect[1] * tAdjust;
 						if (modelptr->g2maxs[1] < modelptr->g2maxs2[1])
 						{
 							modelptr->g2maxs[1] = modelptr->g2maxs2[1];
@@ -8343,7 +8359,7 @@ static qboolean Item_Paint(itemDef_t *item, qboolean bDraw)
 				{
 					if (modelptr->g2maxs[2] < modelptr->g2maxs2[2])
 					{
-						modelptr->g2maxs[2] += modelptr->g2maxsEffect[2];
+						modelptr->g2maxs[2] += modelptr->g2maxsEffect[2] * tAdjust;
 						if (modelptr->g2maxs[2] > modelptr->g2maxs2[2])
 						{
 							modelptr->g2maxs[2] = modelptr->g2maxs2[2];
@@ -8352,7 +8368,7 @@ static qboolean Item_Paint(itemDef_t *item, qboolean bDraw)
 					}
 					else
 					{
-						modelptr->g2maxs[2] -= modelptr->g2maxsEffect[2];
+						modelptr->g2maxs[2] -= modelptr->g2maxsEffect[2] * tAdjust;
 						if (modelptr->g2maxs[2] < modelptr->g2maxs2[2])
 						{
 							modelptr->g2maxs[2] = modelptr->g2maxs2[2];
@@ -8370,7 +8386,7 @@ static qboolean Item_Paint(itemDef_t *item, qboolean bDraw)
 				{
 					if (modelptr->g2mins[0] < modelptr->g2mins2[0])
 					{
-						modelptr->g2mins[0] += modelptr->g2minsEffect[0];
+						modelptr->g2mins[0] += modelptr->g2minsEffect[0] * tAdjust;
 						if (modelptr->g2mins[0] > modelptr->g2mins2[0])
 						{
 							modelptr->g2mins[0] = modelptr->g2mins2[0];
@@ -8379,7 +8395,7 @@ static qboolean Item_Paint(itemDef_t *item, qboolean bDraw)
 					}
 					else
 					{
-						modelptr->g2mins[0] -= modelptr->g2minsEffect[0];
+						modelptr->g2mins[0] -= modelptr->g2minsEffect[0] * tAdjust;
 						if (modelptr->g2mins[0] < modelptr->g2mins2[0])
 						{
 							modelptr->g2mins[0] = modelptr->g2mins2[0];
@@ -8396,7 +8412,7 @@ static qboolean Item_Paint(itemDef_t *item, qboolean bDraw)
 				{
 					if (modelptr->g2mins[1] < modelptr->g2mins2[1])
 					{
-						modelptr->g2mins[1] += modelptr->g2minsEffect[1];
+						modelptr->g2mins[1] += modelptr->g2minsEffect[1] * tAdjust;
 						if (modelptr->g2mins[1] > modelptr->g2mins2[1])
 						{
 							modelptr->g2mins[1] = modelptr->g2mins2[1];
@@ -8405,7 +8421,7 @@ static qboolean Item_Paint(itemDef_t *item, qboolean bDraw)
 					}
 					else
 					{
-						modelptr->g2mins[1] -= modelptr->g2minsEffect[1];
+						modelptr->g2mins[1] -= modelptr->g2minsEffect[1] * tAdjust;
 						if (modelptr->g2mins[1] < modelptr->g2mins2[1])
 						{
 							modelptr->g2mins[1] = modelptr->g2mins2[1];
@@ -8425,7 +8441,7 @@ static qboolean Item_Paint(itemDef_t *item, qboolean bDraw)
 				{
 					if (modelptr->g2mins[2] < modelptr->g2mins2[2])
 					{
-						modelptr->g2mins[2] += modelptr->g2minsEffect[2];
+						modelptr->g2mins[2] += modelptr->g2minsEffect[2] * tAdjust;
 						if (modelptr->g2mins[2] > modelptr->g2mins2[2])
 						{
 							modelptr->g2mins[2] = modelptr->g2mins2[2];
@@ -8434,7 +8450,7 @@ static qboolean Item_Paint(itemDef_t *item, qboolean bDraw)
 					}
 					else
 					{
-						modelptr->g2mins[2] -= modelptr->g2minsEffect[2];
+						modelptr->g2mins[2] -= modelptr->g2minsEffect[2] * tAdjust;
 						if (modelptr->g2mins[2] < modelptr->g2mins2[2])
 						{
 							modelptr->g2mins[2] = modelptr->g2mins2[2];
@@ -8454,7 +8470,7 @@ static qboolean Item_Paint(itemDef_t *item, qboolean bDraw)
 				{
 					if (modelptr->fov_x < modelptr->fov_x2)
 					{
-						modelptr->fov_x += modelptr->fov_Effectx;
+						modelptr->fov_x += modelptr->fov_Effectx * tAdjust;
 						if (modelptr->fov_x > modelptr->fov_x2)
 						{
 							modelptr->fov_x = modelptr->fov_x2;
@@ -8463,7 +8479,7 @@ static qboolean Item_Paint(itemDef_t *item, qboolean bDraw)
 					}
 					else
 					{
-						modelptr->fov_x -= modelptr->fov_Effectx;
+						modelptr->fov_x -= modelptr->fov_Effectx * tAdjust;
 						if (modelptr->fov_x < modelptr->fov_x2)
 						{
 							modelptr->fov_x = modelptr->fov_x2;
@@ -8481,7 +8497,7 @@ static qboolean Item_Paint(itemDef_t *item, qboolean bDraw)
 				{
 					if (modelptr->fov_y < modelptr->fov_y2)
 					{
-						modelptr->fov_y += modelptr->fov_Effecty;
+						modelptr->fov_y += modelptr->fov_Effecty * tAdjust;
 						if (modelptr->fov_y > modelptr->fov_y2)
 						{
 							modelptr->fov_y = modelptr->fov_y2;
@@ -8490,7 +8506,7 @@ static qboolean Item_Paint(itemDef_t *item, qboolean bDraw)
 					}
 					else
 					{
-						modelptr->fov_y -= modelptr->fov_Effecty;
+						modelptr->fov_y -= modelptr->fov_Effecty * tAdjust;
 						if (modelptr->fov_y < modelptr->fov_y2)
 						{
 							modelptr->fov_y = modelptr->fov_y2;
@@ -8735,10 +8751,11 @@ void Fade(int *flags, float *f, float clamp, int *nextTime, int offsetTime, qboo
 	{
 		if (DC->realTime > *nextTime)
 		{
-			*nextTime = DC->realTime + offsetTime;
+			const float tAdjust = UI_FrameAdjust();
+			*nextTime = DC->realTime + (offsetTime * tAdjust);
 			if (*flags & WINDOW_FADINGOUT)
 			{
-				*f -= fadeAmount;
+				*f -= fadeAmount * tAdjust;
 				if (bFlags && *f <= 0.0)
 				{
 					*flags &= ~(WINDOW_FADINGOUT | WINDOW_VISIBLE);
@@ -8746,7 +8763,7 @@ void Fade(int *flags, float *f, float clamp, int *nextTime, int offsetTime, qboo
 			}
 			else
 			{
-				*f += fadeAmount;
+				*f += fadeAmount * tAdjust;
 				if (*f >= clamp)
 				{
 				  *f = clamp;

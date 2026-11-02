@@ -1369,8 +1369,8 @@ const void	*RB_DrawSurfs( const void *data ) {
 		// Resize the viewport to the blur texture size.
 		const int oldViewWidth = backEnd.viewParms.viewportWidth;
 		const int oldViewHeight = backEnd.viewParms.viewportHeight;
-		backEnd.viewParms.viewportWidth = r_DynamicGlowWidth->integer;
-		backEnd.viewParms.viewportHeight = r_DynamicGlowHeight->integer;
+		backEnd.viewParms.viewportWidth = tr.dynamicGlowWidth;
+		backEnd.viewParms.viewportHeight = tr.dynamicGlowHeight;
 		SetViewportAndScissor();
 
 		// Blur the scene.
@@ -1527,6 +1527,31 @@ void RB_ShowImages( void ) {
 	//ri->Printf( PRINT_ALL, "%i msec to draw all images\n", end - start );
 }
 
+const void RB_EmulateOBB( void )
+{
+	if ( !backEnd.projection2D ) {
+		RB_SetGL2D();
+	}
+
+	GL_Bind( tr.whiteImage );
+	GL_State(
+		GLS_DEPTHTEST_DISABLE
+		| GLS_DSTBLEND_SRC_COLOR
+		| GLS_SRCBLEND_DST_COLOR
+	);
+	GL_Cull(CT_TWO_SIDED);
+
+	for (int i = 0; i < tr.overbrightBits; i++)
+	{
+		qglBegin (GL_TRIANGLES);
+			qglTexCoord2f( 0.5f, 0.5f );
+			qglColor3ub( 255, 255, 255);
+			qglVertex2f( 0, 0 );
+			qglVertex2f( 2 * glConfig.vidWidth, 0 );
+			qglVertex2f( 0, 2 * glConfig.vidHeight );
+		qglEnd();
+	}
+}
 
 /*
 =============
@@ -1546,6 +1571,10 @@ const void	*RB_SwapBuffers( const void *data ) {
 	// texture swapping test
 	if ( r_showImages->integer ) {
 		RB_ShowImages();
+	}
+
+	if ( tr.overbrightBitsEmulation && tr.overbrightBits > 0 ) {
+		RB_EmulateOBB();
 	}
 
 	cmd = (const swapBuffersCommand_t *)data;
@@ -1756,7 +1785,7 @@ static inline void RB_BlurGlowTexture()
 	/////////////////////////////////////////////////////////
 
 	// How much to offset each texel by.
-	float fTexelWidthOffset = 0.1f, fTexelHeightOffset = 0.1f;
+	float texelOffset = 0.1f;
 
 	GLuint uiTex = tr.screenGlow;
 
@@ -1787,10 +1816,10 @@ static inline void RB_BlurGlowTexture()
 	for ( int iNumBlurPasses = 0; iNumBlurPasses < r_DynamicGlowPasses->integer; iNumBlurPasses++ )
 	{
 		// Load the Texel Offsets into the Vertex Program.
-		qglProgramEnvParameter4fARB( GL_VERTEX_PROGRAM_ARB, 0, -fTexelWidthOffset, -fTexelWidthOffset, 0.0f, 0.0f );
-		qglProgramEnvParameter4fARB( GL_VERTEX_PROGRAM_ARB, 1, -fTexelWidthOffset, fTexelWidthOffset, 0.0f, 0.0f );
-		qglProgramEnvParameter4fARB( GL_VERTEX_PROGRAM_ARB, 2, fTexelWidthOffset, -fTexelWidthOffset, 0.0f, 0.0f );
-		qglProgramEnvParameter4fARB( GL_VERTEX_PROGRAM_ARB, 3, fTexelWidthOffset, fTexelWidthOffset, 0.0f, 0.0f );
+		qglProgramEnvParameter4fARB( GL_VERTEX_PROGRAM_ARB, 0, -texelOffset, -texelOffset, 0.0f, 0.0f );
+		qglProgramEnvParameter4fARB( GL_VERTEX_PROGRAM_ARB, 1, -texelOffset, texelOffset, 0.0f, 0.0f );
+		qglProgramEnvParameter4fARB( GL_VERTEX_PROGRAM_ARB, 2, texelOffset, -texelOffset, 0.0f, 0.0f );
+		qglProgramEnvParameter4fARB( GL_VERTEX_PROGRAM_ARB, 3, texelOffset, texelOffset, 0.0f, 0.0f );
 
 		// After first pass put the tex coords to the viewport size.
 		if ( iNumBlurPasses == 1 )
@@ -1847,8 +1876,7 @@ static inline void RB_BlurGlowTexture()
 		// make it look better (at a much higher cost of course). This is cheap though and still looks pretty great. In the future
 		// I might want to use an actual gaussian equation to correctly calculate the pixel coefficients and attenuates, texel
 		// offsets, gaussian amplitude and radius...
-		fTexelWidthOffset += r_DynamicGlowDelta->value;
-		fTexelHeightOffset += r_DynamicGlowDelta->value;
+		texelOffset += r_DynamicGlowDelta->value;
 	}
 
 	// Disable multi-texturing.
@@ -1934,16 +1962,16 @@ static inline void RB_DrawGlowOverlay()
 	qglBindTexture( GL_TEXTURE_RECTANGLE_ARB, tr.blurImage );
 	qglBegin(GL_QUADS);
 		qglColor4f( 1.0f, 1.0f, 1.0f, 1.0f );
-		qglTexCoord2f( 0, r_DynamicGlowHeight->integer );
+		qglTexCoord2f( 0, tr.dynamicGlowHeight );
 		qglVertex2f( 0, 0 );
 
 		qglTexCoord2f( 0, 0 );
 		qglVertex2f( 0, glConfig.vidHeight );
 
-		qglTexCoord2f( r_DynamicGlowWidth->integer, 0 );
+		qglTexCoord2f( tr.dynamicGlowWidth, 0 );
 		qglVertex2f( glConfig.vidWidth, glConfig.vidHeight );
 
-		qglTexCoord2f( r_DynamicGlowWidth->integer, r_DynamicGlowHeight->integer );
+		qglTexCoord2f( tr.dynamicGlowWidth, tr.dynamicGlowHeight );
 		qglVertex2f( glConfig.vidWidth, 0 );
 	qglEnd();
 

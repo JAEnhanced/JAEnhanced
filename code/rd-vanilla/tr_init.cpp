@@ -99,6 +99,7 @@ cvar_t	*r_DynamicGlowIntensity;
 cvar_t	*r_DynamicGlowSoft;
 cvar_t	*r_DynamicGlowWidth;
 cvar_t	*r_DynamicGlowHeight;
+cvar_t	*r_DynamicGlowScale;
 
 cvar_t	*r_ignoreGLErrors;
 cvar_t	*r_logFile;
@@ -1539,6 +1540,7 @@ void R_Register( void )
 	r_DynamicGlowSoft = ri->Cvar_Get( "r_DynamicGlowSoft", "1", CVAR_ARCHIVE );
 	r_DynamicGlowWidth = ri->Cvar_Get( "r_DynamicGlowWidth", "320", CVAR_ARCHIVE | CVAR_LATCH );
 	r_DynamicGlowHeight = ri->Cvar_Get( "r_DynamicGlowHeight", "240", CVAR_ARCHIVE | CVAR_LATCH );
+	r_DynamicGlowScale = ri->Cvar_Get( "r_DynamicGlowScale", "0.25", CVAR_ARCHIVE | CVAR_LATCH );
 
 	r_picmip = ri->Cvar_Get ("r_picmip", "0", CVAR_ARCHIVE | CVAR_LATCH );
 	ri->Cvar_CheckRange( r_picmip, 0, 16, qtrue );
@@ -1546,8 +1548,13 @@ void R_Register( void )
 	r_detailTextures = ri->Cvar_Get( "r_detailtextures", "1", CVAR_ARCHIVE | CVAR_LATCH );
 	r_texturebits = ri->Cvar_Get( "r_texturebits", "0", CVAR_ARCHIVE | CVAR_LATCH );
 	r_texturebitslm = ri->Cvar_Get( "r_texturebitslm", "0", CVAR_ARCHIVE | CVAR_LATCH );
+#ifdef JK2_MODE
+	r_overBrightBits = ri->Cvar_Get ("r_overBrightBits", "1", CVAR_ARCHIVE | CVAR_LATCH );
+	r_mapOverBrightBits = ri->Cvar_Get( "r_mapOverBrightBits", "1", CVAR_ARCHIVE|CVAR_LATCH );
+#else
 	r_overBrightBits = ri->Cvar_Get ("r_overBrightBits", "0", CVAR_ARCHIVE | CVAR_LATCH );
 	r_mapOverBrightBits = ri->Cvar_Get( "r_mapOverBrightBits", "0", CVAR_ARCHIVE|CVAR_LATCH );
+#endif
 	r_simpleMipMaps = ri->Cvar_Get( "r_simpleMipMaps", "1", CVAR_ARCHIVE | CVAR_LATCH );
 	r_vertexLight = ri->Cvar_Get( "r_vertexLight", "0", CVAR_ARCHIVE | CVAR_LATCH );
 	r_subdivisions = ri->Cvar_Get ("r_subdivisions", "4", CVAR_ARCHIVE | CVAR_LATCH);

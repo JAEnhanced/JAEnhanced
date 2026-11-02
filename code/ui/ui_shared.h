@@ -30,6 +30,8 @@ enum {
 	SSF_PNG
 };
 
+#define UI_TARGET_FPS 60
+#define UI_MAX_FRAMETIME 100	// ms, longest frame UI animations catch up on
 #define MAX_TOKENLENGTH		1024
 #define MAX_OPEN_MENUS 16
 #define	MAX_TEXTSCROLL_LINES		256
