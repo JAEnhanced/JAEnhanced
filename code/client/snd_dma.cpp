@@ -380,6 +380,11 @@ static qboolean S_UsingOpenAL( void ) {
 #endif
 }
 
+// Rate of the raw stream (music, cinematics). OpenAL's dma.speed only describes sfx data.
+static int S_RawSampleRate( void ) {
+	return S_UsingOpenAL() ? 44100 : dma.speed;
+}
+
 // instead of clearing a whole channel_t struct, we're going to skip the MP3SlidingDecodeBuffer[] buffer in the middle...
 //
 #ifndef offsetof
@@ -2180,7 +2185,7 @@ void S_RawSamples( int samples, int rate, int width, int channels, const byte *d
 
 	rawEndStart = s_rawend;
 
-	scale = (float)rate / dma.speed;
+	scale = (float)rate / S_RawSampleRate();
 
 //Com_Printf ("%i < %i < %i\n", s_soundtime, s_paintedtime, s_rawend);
 	if (channels == 2 && width == 2)
@@ -3597,12 +3602,12 @@ void AL_UpdateRawSamples()
 
 			if (size > largestBufferSize)
 			{
-				alBufferData(buffer, AL_FORMAT_STEREO16, (char*)(s_rawdata + ((iterations * largestBufferSize)>>1)), largestBufferSize, 22050);
+				alBufferData(buffer, AL_FORMAT_STEREO16, (char*)(s_rawdata + ((iterations * largestBufferSize)>>1)), largestBufferSize, S_RawSampleRate());
 				size -= largestBufferSize;
 			}
 			else
 			{
-				alBufferData(buffer, AL_FORMAT_STEREO16, (char*)(s_rawdata + ((iterations * largestBufferSize)>>1)), size, 22050);
+				alBufferData(buffer, AL_FORMAT_STEREO16, (char*)(s_rawdata + ((iterations * largestBufferSize)>>1)), size, S_RawSampleRate());
 				size = 0;
 			}
 
@@ -4240,7 +4245,7 @@ static qboolean S_StartBackgroundTrack_Actual( MusicInfo_t *pMusicInfo, qboolean
 			//
 			memset(&pMusicInfo->streamMP3_Bgrnd,0,sizeof(pMusicInfo->streamMP3_Bgrnd));
 			char *psError = C_MP3Stream_DecodeInit( &pMusicInfo->streamMP3_Bgrnd, pbMP3DataSegment, pMusicInfo->iLoadedDataLen,
-													dma.speed,
+													S_RawSampleRate(),
 													16,		// sfx->width * 8,
 													qtrue	// bStereoDesired
 													);
@@ -4263,7 +4268,7 @@ static qboolean S_StartBackgroundTrack_Actual( MusicInfo_t *pMusicInfo, qboolean
 
 				pMusicInfo->s_backgroundInfo.format		= WAV_FORMAT_MP3;	// not actually used this way, but just ensures we don't match one of the legit formats
 				pMusicInfo->s_backgroundInfo.channels	= 2;		// always, for our MP3s when used for music (else 1 for FX)
-				pMusicInfo->s_backgroundInfo.rate		= dma.speed;
+				pMusicInfo->s_backgroundInfo.rate		= S_RawSampleRate();
 				pMusicInfo->s_backgroundInfo.width		= 2;		// always, for our MP3s
 				pMusicInfo->s_backgroundInfo.samples	= pMusicInfo->sfxMP3_Bgrnd.iSoundLengthInSamples;
 				pMusicInfo->s_backgroundSamples			= pMusicInfo->sfxMP3_Bgrnd.iSoundLengthInSamples;
@@ -4800,7 +4805,7 @@ static qboolean S_UpdateBackgroundTrack_Actual( MusicInfo_t *pMusicInfo, qboolea
 		bufferSamples = MAX_RAW_SAMPLES - (s_rawend - s_soundtime);
 
 		// decide how much data needs to be read from the file
-		fileSamples = bufferSamples * pMusicInfo->s_backgroundInfo.rate / dma.speed;
+		fileSamples = bufferSamples * pMusicInfo->s_backgroundInfo.rate / S_RawSampleRate();
 
 		// don't try to play if there are no more samples in the file
 		if (!fileSamples) {
