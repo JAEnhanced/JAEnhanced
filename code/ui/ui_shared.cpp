@@ -1058,8 +1058,8 @@ Hacks to fix issues with Team Arena menu scripts
 ===============
 */
 static void Item_ApplyHacks( itemDef_t *item ) {
-#if !defined(_WIN32) || ( defined(_WIN32) && defined(idx64) )
-	// Fix length of favorite address in createfavorite.menu
+#ifndef USE_OPENAL
+	// Disable the EAX option in builds without the OpenAL backend
 	if ( item->type == ITEM_TYPE_MULTI && item->cvar && !Q_stricmp( item->cvar, "s_UseOpenAL" ) ) {
 		if( item->parent )
 		{
@@ -1068,7 +1068,7 @@ static void Item_ApplyHacks( itemDef_t *item ) {
 			item->disabled = qtrue;
 			// Just in case it had focus
 			item->window.flags &= ~WINDOW_MOUSEOVER;
-			Com_Printf( "Disabling eax field because current platform does not support EAX.\n");
+			Com_Printf( "Disabling eax field because this build has no OpenAL support.\n");
 		}
 	}
 
@@ -1080,7 +1080,7 @@ static void Item_ApplyHacks( itemDef_t *item ) {
 			item->disabled = item->disabledHidden = qtrue;
 			// Just in case it had focus
 			item->window.flags &= ~WINDOW_MOUSEOVER;
-			Com_Printf( "Hiding eax_icon object because current platform does not support EAX.\n");
+			Com_Printf( "Hiding eax_icon object because this build has no OpenAL support.\n");
 		}
 	}
 #endif

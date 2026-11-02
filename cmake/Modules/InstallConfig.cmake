@@ -111,10 +111,6 @@ if(WIN32)
 			"${CPACK_NSIS_DELETE_ICONS_EXTRA}
 			Delete '$SMPROGRAMS\\\\$MUI_TEMP\\\\Jedi Academy SP.lnk'")
 
-		install(FILES ${MPDir}/OpenAL32.dll ${MPDir}/EaxMan.dll
-			DESTINATION ${JKAInstallDir}
-			COMPONENT ${JKASPClientComponent})
-
 		install(PROGRAMS ${CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS}
 				DESTINATION ${JKAInstallDir}
 				COMPONENT ${JKASPClientComponent})
@@ -133,10 +129,6 @@ if(WIN32)
 		set(CPACK_NSIS_DELETE_ICONS_EXTRA
 			"${CPACK_NSIS_DELETE_ICONS_EXTRA}
 			Delete '$SMPROGRAMS\\\\$MUI_TEMP\\\\Jedi Outcast SP.lnk'")
-
-		install(FILES ${MPDir}/OpenAL32.dll ${MPDir}/EaxMan.dll
-			DESTINATION ${JK2InstallDir}
-			COMPONENT ${JK2SPClientComponent})
 
 		install(PROGRAMS ${CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS}
 				DESTINATION ${JK2InstallDir}
