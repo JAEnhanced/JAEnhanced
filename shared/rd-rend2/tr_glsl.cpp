@@ -2628,6 +2628,12 @@ static int GLSL_LoadGPUProgramSMAA(
 			"#define SMAA_REPROJECTION 1\n"
 		);
 	}
+	else
+	{
+		Q_strcat(extradefines, sizeof(extradefines),
+			"#define SMAA_REPROJECTION 0\n"
+		);
+	}
 	
 	{
 		GLSL_LoadGPUProgramBasicWithDefinitions(
