@@ -323,16 +323,6 @@ static void S_AL_SetSourceAttenuation(ALuint source, qboolean reducedAttenuation
 	}
 }
 
-// OutputDebugString only exists on Windows; other platforms print to stdout.
-static void S_AL_DebugPrint(const char *msg)
-{
-#ifdef _WIN32
-	OutputDebugString(msg);
-#else
-	printf("%s", msg);
-#endif
-}
-
 void Normalize(EAXVECTOR *v)
 {
 	float flMagnitude;
@@ -616,7 +606,7 @@ void S_Init( void ) {
 				if (s_eaxSet(&EAXPROPERTYID_EAX40_Source, EAXSOURCE_FLAGS,
 							s_channels[i].alSource, &ulFlags, sizeof(ulFlags))!=AL_NO_ERROR)
 				{
-					S_AL_DebugPrint("Failed to to remove Source flags\n");
+					Com_DPrintf("Failed to to remove Source flags\n");
 				}
 			}
 
@@ -3123,9 +3113,7 @@ void S_Update_(void) {
 					else
 					{
 #ifdef _DEBUG
-						char szString[256];
-						sprintf(szString, "Missing lip-sync info. for %s\n", ch->thesfx->sSoundName);
-						S_AL_DebugPrint(szString);
+						Com_DPrintf("Missing lip-sync info. for %s\n", ch->thesfx->sSoundName);
 #endif
 					}
 				}
@@ -3182,9 +3170,6 @@ void UpdateSingleShotSounds()
 	ALint state;
 	ALint processed;
 	channel_t *ch;
-#ifdef _DEBUG
-	char szString[256];
-#endif
 
 	// Firstly, check if any single-shot sounds have completed, or if they need more data (for streaming Sources),
 	// and/or if any of the currently playing (non-Ambient) looping sounds need to be stopped
@@ -3281,8 +3266,7 @@ void UpdateSingleShotSounds()
 										else
 										{
 #ifdef _DEBUG
-											sprintf(szString, "Missing lip-sync info. for %s\n", ch->thesfx->sSoundName);
-											S_AL_DebugPrint(szString);
+											Com_DPrintf("Missing lip-sync info. for %s\n", ch->thesfx->sSoundName);
 #endif
 										}
 									}
@@ -3334,9 +3318,7 @@ void UpdateSingleShotSounds()
 					{
 						alSourcePlay(ch->alSource);
 #ifdef _DEBUG
-						char szString[256];
-						sprintf(szString,"[%d] Restarting playback of single-shot streaming MP3 sample - still have %d bytes to decode\n", i, ch->MP3StreamHeader.iSourceBytesRemaining);
-						S_AL_DebugPrint(szString);
+						Com_DPrintf("[%d] Restarting playback of single-shot streaming MP3 sample - still have %d bytes to decode\n", i, ch->MP3StreamHeader.iSourceBytesRemaining);
 #endif
 					}
 				}
@@ -3567,7 +3549,7 @@ void AL_UpdateRawSamples()
 		size = (s_rawend - s_paintedtime)<<2;
 		if (size > (MAX_RAW_SAMPLES<<2))
 		{
-			S_AL_DebugPrint("UpdateRawSamples :- Raw Sample buffer has overflowed !!!\n");
+			Com_DPrintf("UpdateRawSamples :- Raw Sample buffer has overflowed !!!\n");
 			size = MAX_RAW_SAMPLES<<2;
 			s_paintedtime = s_rawend - MAX_RAW_SAMPLES;
 		}
@@ -3623,7 +3605,7 @@ void AL_UpdateRawSamples()
 		if (state != AL_PLAYING)
 		{
 #ifdef _DEBUG
-			S_AL_DebugPrint("Restarting / Starting playback of Raw Samples\n");
+			Com_DPrintf("Restarting / Starting playback of Raw Samples\n");
 #endif
 			alSourcePlay(s_channels[0].alSource);
 		}
@@ -3631,7 +3613,7 @@ void AL_UpdateRawSamples()
 
 #ifdef _DEBUG
 	if (alGetError() != AL_NO_ERROR)
-		S_AL_DebugPrint("OAL Error : UpdateRawSamples\n");
+		Com_DPrintf("OAL Error : UpdateRawSamples\n");
 #endif
 }
 #endif
@@ -6003,7 +5985,7 @@ static void UpdateEAXListener()
 				// Mute it
 				lVolume = -10000;
 				if (s_eaxSet(&s_FXSlotInfo[i].FXSlotGuid, EAXFXSLOT_VOLUME, NULL, &lVolume, sizeof(lVolume))!=AL_NO_ERROR)
-					S_AL_DebugPrint("Failed to Mute FX Slot\n");
+					Com_DPrintf("Failed to Mute FX Slot\n");
 
 				// If any source is sending to this Slot ID then we need to stop them sending to the slot
 				for (j = 1; j < s_numChannels; j++)
@@ -6012,7 +5994,7 @@ static void UpdateEAXListener()
 					{
 						if (s_eaxSet(&EAXPROPERTYID_EAX40_Source, EAXSOURCE_ACTIVEFXSLOTID, s_channels[j].alSource, (void*)&EAX_NULL_GUID, sizeof(GUID))!=AL_NO_ERROR)
 						{
-							S_AL_DebugPrint("Failed to set Source ActiveFXSlotID to NULL\n");
+							Com_DPrintf("Failed to set Source ActiveFXSlotID to NULL\n");
 						}
 
 						s_channels[j].lSlotID = -1;
@@ -6097,13 +6079,13 @@ static void UpdateEAXListener()
 
 								// Get Source Environment point
 								if (s_lpEAXManager->GetListenerDynamicAttributes(0, &EMSourcePoint, &lSourceID, 0)!=EM_OK)
-									S_AL_DebugPrint("Failed to get environment zone for Source\n");
+									Com_DPrintf("Failed to get environment zone for Source\n");
 
 								if (lSourceID == i)
 								{
 									if (s_eaxSet(&EAXPROPERTYID_EAX40_Source, EAXSOURCE_ACTIVEFXSLOTID, ch->alSource, (void*)&(s_FXSlotInfo[i].FXSlotGuid), sizeof(GUID))!=AL_NO_ERROR)
 									{
-										S_AL_DebugPrint("Failed to set Source ActiveFXSlotID to new environment\n");
+										Com_DPrintf("Failed to set Source ActiveFXSlotID to new environment\n");
 									}
 
 									ch->lSlotID = i;
@@ -6219,10 +6201,10 @@ static void UpdateEAXListener()
 				Pan.z *= -flMagnitude;
 
 				if (s_eaxSet(&s_FXSlotInfo[i].FXSlotGuid, EAXREVERB_REVERBPAN, NULL, &Pan, sizeof(EAXVECTOR))!=AL_NO_ERROR)
-					S_AL_DebugPrint("Failed to set Listener Reverb Pan\n");
+					Com_DPrintf("Failed to set Listener Reverb Pan\n");
 
 				if (s_eaxSet(&s_FXSlotInfo[i].FXSlotGuid, EAXREVERB_REFLECTIONSPAN, NULL, &Pan, sizeof(EAXVECTOR))!=AL_NO_ERROR)
-					S_AL_DebugPrint("Failed to set Listener Reflections Pan\n");
+					Com_DPrintf("Failed to set Listener Reflections Pan\n");
 			}
 			else
 			{
@@ -6270,10 +6252,10 @@ static void UpdateEAXListener()
 				Pan.z *= flMagnitude;
 
 				if (s_eaxSet(&s_FXSlotInfo[i].FXSlotGuid, EAXREVERB_REVERBPAN, NULL, &Pan, sizeof(EAXVECTOR))!=AL_NO_ERROR)
-					S_AL_DebugPrint("Failed to set Reverb Pan\n");
+					Com_DPrintf("Failed to set Reverb Pan\n");
 
 				if (s_eaxSet(&s_FXSlotInfo[i].FXSlotGuid, EAXREVERB_REFLECTIONSPAN, NULL, &Pan, sizeof(EAXVECTOR))!=AL_NO_ERROR)
-					S_AL_DebugPrint("Failed to set Reflections Pan\n");
+					Com_DPrintf("Failed to set Reflections Pan\n");
 			}
 		}
 
@@ -6281,7 +6263,7 @@ static void UpdateEAXListener()
 		for (i = 0; i < s_NumFXSlots; i++)
 		{
 			if (s_eaxSet(&s_FXSlotInfo[i].FXSlotGuid, EAXFXSLOT_VOLUME, NULL, &lVolume, sizeof(lVolume))!=AL_NO_ERROR)
-				S_AL_DebugPrint("Failed to set FX Slot Volume to 0\n");
+				Com_DPrintf("Failed to set FX Slot Volume to 0\n");
 		}
 	}
 
@@ -6363,7 +6345,7 @@ static void UpdateEAXBuffer(channel_t *ch)
 				{
 					// Set this
 					if (s_eaxSet(&EAXPROPERTYID_EAX40_Source, EAXSOURCE_ACTIVEFXSLOTID, ch->alSource, &s_FXSlotInfo[i].FXSlotGuid, sizeof(GUID))!=AL_NO_ERROR)
-						S_AL_DebugPrint("UpdateEAXBuffer = failed to set ActiveFXSlotID\n");
+						Com_DPrintf("UpdateEAXBuffer = failed to set ActiveFXSlotID\n");
 
 					ch->lSlotID = i;
 				}
@@ -6374,7 +6356,7 @@ static void UpdateEAXBuffer(channel_t *ch)
 	}
 	else
 	{
-		S_AL_DebugPrint("UpdateEAXBuffer::Failed to get Source environment zone\n");
+		Com_DPrintf("UpdateEAXBuffer::Failed to get Source environment zone\n");
 	}
 
 	// Add some Exclusion to sounds that are not located in the Listener's environment
@@ -6382,13 +6364,13 @@ static void UpdateEAXBuffer(channel_t *ch)
 	{
 		lExclusion = 0;
 		if (s_eaxSet(&EAXPROPERTYID_EAX40_Source, EAXSOURCE_EXCLUSION, ch->alSource, &lExclusion, sizeof(lExclusion))!=AL_NO_ERROR)
-			S_AL_DebugPrint("UpdateEAXBuffer : Failed to set exclusion to 0\n");
+			Com_DPrintf("UpdateEAXBuffer : Failed to set exclusion to 0\n");
 	}
 	else
 	{
 		lExclusion = -1000;
 		if (s_eaxSet(&EAXPROPERTYID_EAX40_Source, EAXSOURCE_EXCLUSION, ch->alSource, &lExclusion, sizeof(lExclusion))!=AL_NO_ERROR)
-			S_AL_DebugPrint("UpdateEAXBuffer : Failed to set exclusion to -1000\n");
+			Com_DPrintf("UpdateEAXBuffer : Failed to set exclusion to -1000\n");
 	}
 
 	if ((ch->entchannel == CHAN_VOICE) || (ch->entchannel == CHAN_VOICE_ATTEN) || (ch->entchannel == CHAN_VOICE_GLOBAL))
