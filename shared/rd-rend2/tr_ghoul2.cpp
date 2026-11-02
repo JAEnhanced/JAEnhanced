@@ -2500,6 +2500,8 @@ void RenderSurfaces( CRenderSurface &RS, const trRefEntity_t *ent, int entityNum
 						(kcur->second.mDeleteTime &&
 						 curTime >= kcur->second.mDeleteTime)) // out of time
 					{
+						if (tex)
+							DeleteR2GoreRecord(kcur->second.mGoreTag);
 						RS.gore_set->mGoreRecords.erase(kcur);
 					}
 					else if (tex->tex[RS.lod])
