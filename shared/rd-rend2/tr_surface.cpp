@@ -2678,7 +2678,7 @@ static void RB_SurfaceSprites( srfSprites_t *surf )
 		{ currentFrameUbo, (size_t)tr.sceneUboOffset, UNIFORM_BLOCK_SCENE },
 		{ currentFrameUbo, (size_t)tr.cameraUboOffsets[tr.viewParms.currentViewParm], UNIFORM_BLOCK_CAMERA },
 		{ currentFrameUbo, (size_t)tr.fogsUboOffset, UNIFORM_BLOCK_FOGS },
-		{ currentFrameUbo, (size_t)tr.temporalInfoUboOffset, UNIFORM_BLOCK_TEMPORAL_INFO }
+		{ currentFrameUbo, tr.temporalInfoUboOffset < 0 ? 0 : (size_t)tr.temporalInfoUboOffset, UNIFORM_BLOCK_TEMPORAL_INFO }
 	};
 
 	uint32_t numBindings;
