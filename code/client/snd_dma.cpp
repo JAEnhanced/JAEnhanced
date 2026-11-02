@@ -722,11 +722,45 @@ void S_ReloadAllUsedSounds(void)
 // Shutdown sound engine
 // =======================================================================
 
+#ifdef USE_OPENAL
+// Stops the raw stream source (channel 0) and frees its queued buffers.
+static void S_AL_FlushRawSource( void )
+{
+	ALuint buffer;
+	ALint processed = 0;
+	ALint size;
+
+	// Stopping marks every queued buffer as processed.
+	alSourceStop(s_channels[0].alSource);
+	alGetSourcei(s_channels[0].alSource, AL_BUFFERS_PROCESSED, &processed);
+	while (processed-- > 0)
+	{
+		alSourceUnqueueBuffers(s_channels[0].alSource, 1, &buffer);
+		alGetBufferi(buffer, AL_SIZE, &size);
+		alDeleteBuffers(1, &buffer);
+		s_soundtime += (size >> 2);	// as in AL_UpdateRawSamples
+	}
+}
+#endif
+
 void S_Shutdown( void )
 {
 	if ( !s_soundStarted ) {
 		return;
 	}
+
+#ifdef USE_OPENAL
+	// Delete the sources first; AL refuses to delete buffers still attached to them.
+	if (s_UseOpenAL && s_numChannels > 0)
+	{
+		S_AL_FlushRawSource();
+
+		for (int i = 0; i < s_numChannels; i++)
+		{
+			alDeleteSources(1, &(s_channels[i].alSource));
+		}
+	}
+#endif
 
 	S_FreeAllSFXMem();
 	S_UnCacheDynamicMusic();
@@ -735,11 +769,6 @@ void S_Shutdown( void )
 	if (s_UseOpenAL)
 	{
 		int i, j;
-		// Release all the AL Sources (including Music channel (Source 0))
-		for (i = 0; i < s_numChannels; i++)
-		{
-			alDeleteSources(1, &(s_channels[i].alSource));
-		}
 
 		// Release Streaming AL Buffers
 		channel_t *ch = s_channels + 1;
@@ -1858,6 +1887,10 @@ void S_StopSounds(void)
 	{
 		channel_t *ch = s_channels;
 		int i;
+		if (s_numChannels > 0)
+		{
+			S_AL_FlushRawSource();
+		}
 		for (i = 0; i < s_numChannels; i++, ch++)
 		{
 			alSourceStop(s_channels[i].alSource);
