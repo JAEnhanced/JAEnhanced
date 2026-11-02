@@ -8089,6 +8089,21 @@ void Item_Slider_Paint(itemDef_t *item)
 
 /*
 =================
+UI_FrameAdjust
+
+Scale for per-step UI animation amounts relative to UI_TARGET_FPS
+=================
+*/
+static float UI_FrameAdjust( void )
+{
+	// frameTime spans the whole gap when a menu opens from gameplay, so cap it
+	const int frameTime = Com_Clampi( 0, UI_MAX_FRAMETIME, DC->frameTime );
+
+	return frameTime / (1000.0f / UI_TARGET_FPS);
+}
+
+/*
+=================
 Item_Paint
 =================
 */
@@ -8097,7 +8112,7 @@ static qboolean Item_Paint(itemDef_t *item, qboolean bDraw)
 	int		xPos,textWidth;
 	vec4_t red;
 	menuDef_t *parent;
-	const float tAdjust = DC->frameTime / (1000.0 / UI_TARGET_FPS);
+	const float tAdjust = UI_FrameAdjust();
 	red[0] = red[3] = 1;
 	red[1] = red[2] = 0;
 
@@ -8126,13 +8141,13 @@ static qboolean Item_Paint(itemDef_t *item, qboolean bDraw)
 			// translate
 			w = item->window.rectClient.w / 2;
 			h = item->window.rectClient.h / 2;
-			rx = item->window.rectClient.x + ((w - item->window.rectEffects.x) * tAdjust);
-			ry = item->window.rectClient.y + ((h - item->window.rectEffects.y) * tAdjust);
-			a = (float) (3 * M_PI / 180);
+			rx = item->window.rectClient.x + w - item->window.rectEffects.x;
+			ry = item->window.rectClient.y + h - item->window.rectEffects.y;
+			a = (float) (3 * M_PI / 180) * tAdjust;
   			c = cos(a);
 			s = sin(a);
-			item->window.rectClient.x = (rx * c - ry * s) + ((item->window.rectEffects.x - w) * tAdjust);
-			item->window.rectClient.y = (rx * s + ry * c) + ((item->window.rectEffects.y - h) * tAdjust);
+			item->window.rectClient.x = (rx * c - ry * s) + item->window.rectEffects.x - w;
+			item->window.rectClient.y = (rx * s + ry * c) + item->window.rectEffects.y - h;
 			Item_UpdatePosition(item);
 
 		}
@@ -8736,7 +8751,7 @@ void Fade(int *flags, float *f, float clamp, int *nextTime, int offsetTime, qboo
 	{
 		if (DC->realTime > *nextTime)
 		{
-			const float tAdjust = DC->frameTime / (1000.0 / UI_TARGET_FPS);
+			const float tAdjust = UI_FrameAdjust();
 			*nextTime = DC->realTime + (offsetTime * tAdjust);
 			if (*flags & WINDOW_FADINGOUT)
 			{
