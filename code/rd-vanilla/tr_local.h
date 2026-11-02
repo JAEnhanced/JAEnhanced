@@ -1022,6 +1022,8 @@ typedef struct {
 	float					identityLight;		// 1.0 / ( 1 << overbrightBits )
 	int						identityLightByte;	// identityLight * 255
 	int						overbrightBits;		// r_overbrightBits->integer, but set to 0 if no hw gamma
+	int						dynamicGlowWidth;	// glow buffer size, from r_DynamicGlowWidth/Height or r_DynamicGlowScale
+	int						dynamicGlowHeight;
 
 	orientationr_t			ori;					// for current entity
 
@@ -1164,13 +1166,14 @@ extern cvar_t	*r_ext_compiled_vertex_array;
 extern cvar_t	*r_ext_texture_env_add;
 extern cvar_t	*r_ext_texture_filter_anisotropic;
 
-extern cvar_t	*r_dynamicGlow;
-extern cvar_t	*r_dynamicGlowPasses;
-extern cvar_t	*r_dynamicGlowDelta;
-extern cvar_t	*r_dynamicGlowIntensity;
-extern cvar_t	*r_dynamicGlowSoft;
-extern cvar_t	*r_dynamicGlowWidth;
-extern cvar_t	*r_dynamicGlowHeight;
+extern cvar_t	*r_DynamicGlow;
+extern cvar_t	*r_DynamicGlowPasses;
+extern cvar_t	*r_DynamicGlowDelta;
+extern cvar_t	*r_DynamicGlowIntensity;
+extern cvar_t	*r_DynamicGlowSoft;
+extern cvar_t	*r_DynamicGlowWidth;
+extern cvar_t	*r_DynamicGlowHeight;
+extern cvar_t	*r_DynamicGlowScale;
 
 extern	cvar_t	*r_nobind;						// turns off binding to appropriate textures
 extern	cvar_t	*r_singleShader;				// make most world faces use default shader
