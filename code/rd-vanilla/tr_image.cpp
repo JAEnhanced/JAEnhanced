@@ -1414,18 +1414,8 @@ void R_SetColorMappings( void ) {
 
 	// setup the overbright lighting
 	tr.overbrightBits = r_overBrightBits->integer;
-	tr.overbrightBitsEmulation = qfalse;
-	if ( !glConfig.deviceSupportsGamma ) {
-		tr.overbrightBitsEmulation = qtrue;
-		//tr.overbrightBits = 0;		// need hardware gamma for overbright
-	}
-
-	// never overbright in windowed mode
-	if ( !glConfig.isFullscreen )
-	{
-		tr.overbrightBitsEmulation = qtrue;
-		//tr.overbrightBits = 0;
-	}
+	// without hardware gamma, or in a window, overbright is a blend pass at the end of the frame
+	tr.overbrightBitsEmulation = (qboolean)( !glConfig.deviceSupportsGamma || !glConfig.isFullscreen );
 
 	if ( tr.overbrightBits > 1 ) {
 		tr.overbrightBits = 1;
@@ -1476,7 +1466,8 @@ void R_SetColorMappings( void ) {
 		s_intensitytable[i] = j;
 	}
 
-	if ( !tr.overbrightBitsEmulation )
+	// the ramp still carries r_gamma when overbright is emulated
+	if ( glConfig.deviceSupportsGamma )
 	{
 		ri->WIN_SetGamma( &glConfig, s_gammatable, s_gammatable, s_gammatable );
 	}

@@ -1573,7 +1573,7 @@ const void	*RB_SwapBuffers( const void *data ) {
 		RB_ShowImages();
 	}
 
-	if ( tr.overbrightBitsEmulation ) {
+	if ( tr.overbrightBitsEmulation && tr.overbrightBits > 0 ) {
 		RB_EmulateOBB();
 	}
 
