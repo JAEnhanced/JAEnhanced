@@ -3261,7 +3261,7 @@ void UpdateSingleShotSounds()
 									{
 										if (ch->thesfx->lipSyncData)
 										{
-											ch->thesfx->lipSyncData[(j*4)+k] = S_MP3PreProcessLipSync(ch, (short *)(ch->buffers[j].Data));
+											ch->thesfx->lipSyncData[(j*4)+k] = S_MP3PreProcessLipSync(ch, (short *)(ch->MP3StreamHeader.bDecodeBuffer));
 										}
 										else
 										{
