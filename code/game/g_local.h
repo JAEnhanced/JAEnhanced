@@ -95,8 +95,18 @@ public:
 	animation_t		animations[MAX_ANIMATIONS];
 	animevent_t		torsoAnimEvents[MAX_ANIM_EVENTS];
 	animevent_t		legsAnimEvents[MAX_ANIM_EVENTS];
-	unsigned char	torsoAnimEventCount;
-	unsigned char	legsAnimEventCount;
+	unsigned short	torsoAnimEventCount;	// MAX_ANIM_EVENTS is over 255
+	unsigned short	legsAnimEventCount;
+
+	static unsigned short CountAnimEvents(const animevent_t *animEvents)
+	{
+		unsigned short count = 0;
+		while (count < MAX_ANIM_EVENTS && animEvents[count].eventType != AEV_NONE)
+		{
+			count++;
+		}
+		return count;
+	}
 
 
 	void sg_export(
@@ -106,8 +116,9 @@ public:
 		saved_game.write<>(animations);
 		saved_game.write<>(torsoAnimEvents);
 		saved_game.write<>(legsAnimEvents);
-		saved_game.write<uint8_t>(torsoAnimEventCount);
-		saved_game.write<uint8_t>(legsAnimEventCount);
+		// the save format holds 8-bit counts, which import ignores
+		saved_game.write<uint8_t>(static_cast<uint8_t>(torsoAnimEventCount));
+		saved_game.write<uint8_t>(static_cast<uint8_t>(legsAnimEventCount));
 		saved_game.skip(2);
 	}
 
@@ -118,9 +129,9 @@ public:
 		saved_game.read<>(animations);
 		saved_game.read<>(torsoAnimEvents);
 		saved_game.read<>(legsAnimEvents);
-		saved_game.read<uint8_t>(torsoAnimEventCount);
-		saved_game.read<uint8_t>(legsAnimEventCount);
-		saved_game.skip(2);
+		saved_game.skip(4);
+		torsoAnimEventCount = CountAnimEvents(torsoAnimEvents);
+		legsAnimEventCount = CountAnimEvents(legsAnimEvents);
 	}
 }; // animFileSet_t
 

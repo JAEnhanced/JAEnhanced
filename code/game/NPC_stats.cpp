@@ -429,7 +429,7 @@ int CG_CheckAnimFrameForEventType( animevent_t *animEvents, int keyFrame, animEv
 ParseAnimationEvtBlock
 ======================
 */
-static void ParseAnimationEvtBlock(int glaIndex, unsigned short modelIndex, const char* aeb_filename, animevent_t *animEvents, animation_t *animations, unsigned char &lastAnimEvent, const char **text_p, bool bIsFrameSkipped)
+static void ParseAnimationEvtBlock(int glaIndex, unsigned short modelIndex, const char* aeb_filename, animevent_t *animEvents, animation_t *animations, unsigned short &lastAnimEvent, const char **text_p, bool bIsFrameSkipped)
 {
 	const char		*token;
 	int				num, n, animNum, keyFrame, lowestVal, highestVal, curAnimEvent = 0;
@@ -525,6 +525,12 @@ static void ParseAnimationEvtBlock(int glaIndex, unsigned short modelIndex, cons
 		curAnimEvent = CG_CheckAnimFrameForEventType( animEvents, keyFrame, eventType, modelIndex );
 		if ( curAnimEvent == -1 )
 		{//this anim frame doesn't already have an event of this type on it
+			if ( lastAnimEvent >= MAX_ANIM_EVENTS )
+			{
+				Com_Printf(S_COLOR_YELLOW"WARNING: Too many anim events, skipping %s in %s\n", GetStringForID(animTable,animNum), aeb_filename );
+				SkipRestOfLine( text_p );
+				continue;
+			}
 			curAnimEvent = lastAnimEvent;
 		}
 
@@ -853,7 +859,10 @@ void G_ParseAnimationEvtFile(int glaIndex, const char* eventsDirectory, int file
 
 	if (modelSpecific)
 	{
-		hstring		modelName(eventsDirectory);
+		// lowercase to match CG_AnimEventModel
+		char		modelDir[MAX_QPATH];
+		Q_strncpyz(modelDir, eventsDirectory, sizeof(modelDir));
+		hstring		modelName(Q_strlwr(modelDir));
 		modelIndex = modelName.handle();
 	}
 

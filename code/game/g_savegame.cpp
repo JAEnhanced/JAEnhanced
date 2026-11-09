@@ -1147,7 +1147,15 @@ static void ReadGEntities(qboolean qbAutosave)
 		{
 			Vehicle_t tempVehicle;
 
+			// g_vehicleInfo fills on demand, so the saved index may not match this session
+			const int vehicleIndex = BG_VehicleGetIndex(pEnt->NPC_type);
+
 			EvaluateFields(savefields_gVHIC, &tempVehicle,(byte *)pEntOriginal->m_pVehicle, INT_ID('V','H','I','C'));
+
+			if (vehicleIndex != VEHICLE_NONE)
+			{
+				tempVehicle.m_pVehicleInfo = &g_vehicleInfo[vehicleIndex];
+			}
 
 			// so can we pinch the original's one or do we have to alloc a new one?...
 			//
