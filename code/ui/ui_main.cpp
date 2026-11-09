@@ -30,6 +30,7 @@ USER INTERFACE MAIN
 */
 
 #include <algorithm>
+#include <string>
 #include <vector>
 
 #include "../server/exe_headers.h"
@@ -402,6 +403,7 @@ typedef struct cvarTable_s {
 } cvarTable_t;
 
 vmCvar_t	ui_menuFiles;
+vmCvar_t	ui_mergeMenuLists;
 vmCvar_t	ui_hudFiles;
 
 vmCvar_t	ui_char_anim;
@@ -503,6 +505,7 @@ static void UI_Set2DRatio(void) {
 static cvarTable_t cvarTable[] =
 {
 	{ &ui_menuFiles,			"ui_menuFiles",			"ui/menus.txt", NULL, CVAR_ARCHIVE },
+	{ &ui_mergeMenuLists,		"ui_mergeMenuLists",	"1", NULL, CVAR_ARCHIVE },
 #ifdef JK2_MODE
 	{ &ui_hudFiles,				"cg_hudFiles",			"ui/jk2hud.txt", NULL, CVAR_ARCHIVE},
 #else
@@ -4139,7 +4142,7 @@ Load_Menu
 	Load current menu file
 =================
 */
-qboolean Load_Menu(const char **holdBuffer)
+qboolean Load_Menu(const char **holdBuffer, std::vector<std::string> &loaded)
 {
 	const char	*token2;
 
@@ -4173,51 +4176,25 @@ qboolean Load_Menu(const char **holdBuffer)
 //		extern void UI_Debug_AddMenuFilePath(const char *);
 //		UI_Debug_AddMenuFilePath(token2);
 //#endif
-		UI_ParseMenu(token2);
+		// several menu files can list the same menu, load it once
+		const std::string path = token2;
+		if (std::find_if(loaded.begin(), loaded.end(),
+			[&path](const std::string &s) { return !Q_stricmp(s.c_str(), path.c_str()); }) != loaded.end())
+		{
+			continue;
+		}
+		loaded.push_back(path);
+		UI_ParseMenu(path.c_str());
 
 	}
 	return qfalse;
 }
 
-/*
-=================
-UI_LoadMenus
-	Load all menus based on the files listed in the data file in menuFile (default "ui/menus.txt")
-=================
-*/
-void UI_LoadMenus(const char *menuFile, qboolean reset)
+static void UI_ParseMenuList(const char *buffer, const char *menuFile, std::vector<std::string> &loaded)
 {
-//	pc_token_t token;
-//	int handle;
-	int start;
-
-	char *buffer;
-	const char *holdBuffer;
-	int len;
-
-	start = Sys_Milliseconds();
-
-	len = ui.FS_ReadFile(menuFile,(void **) &buffer);
-
-	if (len<1)
-	{
-		Com_Printf( va( S_COLOR_YELLOW "menu file not found: %s, using default\n", menuFile ) );
-		len = ui.FS_ReadFile("ui/menus.txt",(void **) &buffer);
-
-		if (len<1)
-		{
-			Com_Error( ERR_FATAL, "%s", va("default menu file not found: ui/menus.txt, unable to continue!\n", menuFile ));
-			return;
-		}
-	}
-
-	if (reset)
-	{
-		Menu_Reset();
-	}
-
 	const char	*token2;
-	holdBuffer = buffer;
+	const char	*holdBuffer = buffer;
+
 	COM_BeginParseSession();
 	while ( 1 )
 	{
@@ -4238,7 +4215,7 @@ void UI_LoadMenus(const char *menuFile, qboolean reset)
 		}
 		else if (Q_stricmp(token2, "loadmenu") == 0)
 		{
-			if (Load_Menu(&holdBuffer))
+			if (Load_Menu(&holdBuffer, loaded))
 			{
 				continue;
 			}
@@ -4253,10 +4230,52 @@ void UI_LoadMenus(const char *menuFile, qboolean reset)
 		}
 	}
 	COM_EndParseSession();
+}
+
+/*
+=================
+UI_LoadMenus
+	Load all menus based on the files listed in the data file in menuFile (default "ui/menus.txt").
+	With ui_mergeMenuLists 1 every copy of menuFile in the search path is read, so mods only need
+	to list their own menus.
+=================
+*/
+void UI_LoadMenus(const char *menuFile, qboolean reset)
+{
+	int start = Sys_Milliseconds();
+
+	if (ui.FS_ReadFile(menuFile, NULL) < 1)
+	{
+		Com_Printf( va( S_COLOR_YELLOW "menu file not found: %s, using default\n", menuFile ) );
+		menuFile = "ui/menus.txt";
+
+		if (ui.FS_ReadFile(menuFile, NULL) < 1)
+		{
+			Com_Error( ERR_FATAL, "%s", va("default menu file not found: ui/menus.txt, unable to continue!\n", menuFile ));
+			return;
+		}
+	}
+
+	if (reset)
+	{
+		Menu_Reset();
+	}
+
+	// highest priority copy first
+	const qboolean merge = (qboolean)(ui.Cvar_VariableValue("ui_mergeMenuLists") != 0);
+	std::vector<std::string> loaded;
+	char *buffer;
+	for (int n = 0; ui.FS_ReadNthFile(menuFile, (void **)&buffer, n) >= 0; n++)
+	{
+		UI_ParseMenuList(buffer, menuFile, loaded);
+		ui.FS_FreeFile( buffer );
+		if (!merge)
+		{
+			break;
+		}
+	}
 
 	Com_Printf("UI menu load time = %d milli seconds\n", Sys_Milliseconds() - start);
-
-	ui.FS_FreeFile( buffer );	//let go of the buffer
 }
 
 /*

@@ -43,6 +43,7 @@ It's based on OpenJK (so the code is released under the GPL and available at <ht
 -   **r_mode -2 is now default -** sets the game to the monitor's native resolution at launch. Change back to r_mode -1 to use windowed mode.
 -   **Widescreen HUD fix -** Fixes the HUD to support widescreen resolutions without stretching the HUD elements, default to on. **r_ratioFix**.
 -   **Removed black bars in cutscenes -** this helps with widescreen resolutions not cutting off half of the scene.
+-   **Multiple menu mods -** Menus listed in every copy of ui/ingame.txt and ui/menus.txt are loaded, so menu mods no longer overwrite each other's lists. Set **ui_mergeMenuLists 0** to only read the highest priority list like before; applies the next time menus load (next map, or restart for the main menu).
 
 **Optional features (separate PK3's):**
 

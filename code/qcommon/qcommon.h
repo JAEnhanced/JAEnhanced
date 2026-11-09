@@ -508,6 +508,9 @@ long		FS_ReadFile( const char *qpath, void **buffer );
 // a null buffer will just return the file length without loading
 // as a quick check for existance. -1 length == not present
 // A 0 byte will always be appended at the end, so string ops are safe.
+
+long		FS_ReadNthFile( const char *qpath, void **buffer, int n );
+// like FS_ReadFile, but reads the n-th copy in search order (0 = highest priority)
 // the buffer should be considered read-only, because it may be cached
 // for other uses.
 

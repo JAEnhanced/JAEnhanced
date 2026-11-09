@@ -1249,7 +1249,8 @@ separate file or a ZIP file.
 */
 extern qboolean		com_fullyInitialized;
 
-long FS_FOpenFileRead( const char *filename, fileHandle_t *file, qboolean uniqueFILE ) {
+// skip = number of higher priority copies to pass over
+static long FS_FOpenFileReadNth( const char *filename, fileHandle_t *file, qboolean uniqueFILE, int skip ) {
 	searchpath_t	*search;
 	char			*netpath;
 	pack_t			*pak;
@@ -1311,6 +1312,7 @@ long FS_FOpenFileRead( const char *filename, fileHandle_t *file, qboolean unique
 	do
 	{
 		bFasterToReOpenUsingNewLocalFile = qfalse;
+		int remaining = skip;
 
 		for ( search = fs_searchpaths ; search ; search = search->next ) {
 			//
@@ -1331,6 +1333,10 @@ long FS_FOpenFileRead( const char *filename, fileHandle_t *file, qboolean unique
 					// case and separator insensitive comparisons
 					if ( !FS_FilenameCompare( pakFile->name, filename ) ) {
 						// found it!
+						if ( remaining > 0 ) {
+							remaining--;
+							break;	// one copy per pak, try the next search path
+						}
 
 						if ( uniqueFILE ) {
 							// open a new file on the pakfile
@@ -1382,6 +1388,12 @@ long FS_FOpenFileRead( const char *filename, fileHandle_t *file, qboolean unique
 				netpath = FS_BuildOSPath( dir->path, dir->gamedir, filename );
 				fsh[*file].handleFiles.file.o = fopen (netpath, "rb");
 				if ( !fsh[*file].handleFiles.file.o ) {
+					continue;
+				}
+				if ( remaining > 0 ) {
+					remaining--;
+					fclose( fsh[*file].handleFiles.file.o );
+					fsh[*file].handleFiles.file.o = NULL;
 					continue;
 				}
 
@@ -1471,6 +1483,10 @@ long FS_FOpenFileRead( const char *filename, fileHandle_t *file, qboolean unique
 	Com_DPrintf ("Can't find %s\n", filename);
 	*file = 0;
 	return -1;
+}
+
+long FS_FOpenFileRead( const char *filename, fileHandle_t *file, qboolean uniqueFILE ) {
+	return FS_FOpenFileReadNth( filename, file, uniqueFILE, 0 );
 }
 
 /*
@@ -1747,7 +1763,7 @@ Filename are relative to the quake search path
 a null buffer will just return the file length without loading
 ============
 */
-long FS_ReadFile( const char *qpath, void **buffer ) {
+static long FS_ReadFileNth( const char *qpath, void **buffer, int skip ) {
 	fileHandle_t	h;
 	byte*			buf;
 	long				len;
@@ -1764,7 +1780,7 @@ long FS_ReadFile( const char *qpath, void **buffer ) {
 	buf = NULL;	// quiet compiler warning
 
 	// look for it in the filesystem or pack files
-	len = FS_FOpenFileRead( qpath, &h, qfalse );
+	len = FS_FOpenFileReadNth( qpath, &h, qfalse, skip );
 	if ( h == 0 ) {
 		if ( buffer ) {
 			*buffer = NULL;
@@ -1800,6 +1816,15 @@ long FS_ReadFile( const char *qpath, void **buffer ) {
 	buf[len] = 0;
 	FS_FCloseFile( h );
 	return len;
+}
+
+long FS_ReadFile( const char *qpath, void **buffer ) {
+	return FS_ReadFileNth( qpath, buffer, 0 );
+}
+
+// n-th copy of qpath in search order, 0 is the one FS_ReadFile returns
+long FS_ReadNthFile( const char *qpath, void **buffer, int n ) {
+	return FS_ReadFileNth( qpath, buffer, n );
 }
 
 /*

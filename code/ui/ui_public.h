@@ -62,6 +62,7 @@ typedef struct {
 	void		(*FS_FCloseFile)( fileHandle_t f );
 	int			(*FS_GetFileList)(  const char *path, const char *extension, char *listbuf, int bufsize );
 	long		(*FS_ReadFile)( const char *name, void **buf );
+	long		(*FS_ReadNthFile)( const char *name, void **buf, int n );
 	void		(*FS_FreeFile)( void *buf );
 
 	// =========== renderer function calls ================
