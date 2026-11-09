@@ -1215,6 +1215,35 @@ void SE_ShutDown(void)
 }
 
 
+// loads every string file of one language into the current package
+static const char *SE_LoadLanguageFiles( const char *psLanguage, SE_BOOL bLoadDebug )
+{
+	const char *psErrorMessage = NULL;
+
+	std::string strResults;
+	/*int iFilesFound = */SE_BuildFileList(
+											#ifdef _STRINGED
+												va("C:\\Source\\Tools\\StringEd\\test_data\\%s",sSE_STRINGS_DIR)
+											#else
+												sSE_STRINGS_DIR
+											#endif
+											, strResults
+										);
+
+	const char *p;
+	while ( (p=SE_GetFoundFile (strResults)) != NULL && !psErrorMessage )
+	{
+		const char *psThisLang = TheStringPackage.ExtractLanguageFromPath( p );
+
+		if ( !Q_stricmp( psLanguage, psThisLang ) )
+		{
+			psErrorMessage = SE_Load( p, bLoadDebug );
+		}
+	}
+
+	return psErrorMessage;
+}
+
 // returns error message else NULL for ok.
 //
 // Any errors that result from this should probably be treated as game-fatal, since an asset file is fuxored.
@@ -1227,26 +1256,16 @@ const char *SE_LoadLanguage( const char *psLanguage, SE_BOOL bLoadDebug /* = SE_
 	{
 		SE_NewLanguage();
 
-		std::string strResults;
-		/*int iFilesFound = */SE_BuildFileList(
-												#ifdef _STRINGED
-													va("C:\\Source\\Tools\\StringEd\\test_data\\%s",sSE_STRINGS_DIR)
-												#else
-													sSE_STRINGS_DIR
-												#endif
-												, strResults
-											);
-
-		const char *p;
-		while ( (p=SE_GetFoundFile (strResults)) != NULL && !psErrorMessage )
+		// English first, so strings without a translation (eg. from mods) show in English rather than blank
+		if ( Q_stricmp( psLanguage, "english" ) )
 		{
-			const char *psThisLang = TheStringPackage.ExtractLanguageFromPath( p );
-
-			if ( !Q_stricmp( psLanguage, psThisLang ) )
+			const char *psEnglishError = SE_LoadLanguageFiles( "english", bLoadDebug );
+			if ( psEnglishError )
 			{
-				psErrorMessage = SE_Load( p, bLoadDebug );
+				Com_Printf( S_COLOR_YELLOW "WARNING: English fallback strings: %s", psEnglishError );
 			}
 		}
+		psErrorMessage = SE_LoadLanguageFiles( psLanguage, bLoadDebug );
 	}
 	else
 	{
