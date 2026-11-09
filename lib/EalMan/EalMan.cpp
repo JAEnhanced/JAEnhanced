@@ -69,8 +69,6 @@ static bool getIntersectionPoint(
             + (coordPointB.fY - coordPointA.fY) * vecPlaneNormal.fY
             + (coordPointB.fZ - coordPointA.fZ) * vecPlaneNormal.fZ;
 
-    if (std::fpclassify(denominator) == FP_ZERO) { return false; }
-
     float partB = (
             (
                   (coordPlaneBase.fX - coordPointA.fX) * vecPlaneNormal.fX
@@ -79,6 +77,8 @@ static bool getIntersectionPoint(
             ) / ( denominator )
         );
     float partA = 1.0f - partB;
+
+    if (!std::isfinite(partB)) { return false; }
 
     intersection.fX = partA * coordPointA.fX + partB * coordPointB.fX;
     intersection.fY = partA * coordPointA.fY + partB * coordPointB.fY;
@@ -145,7 +145,9 @@ static void normalize(
 {
     float len = sqrtf(scalarProduct(v.fX, v.fY, v.fZ, v.fX, v.fY, v.fZ));
 
-    if (std::fpclassify(len) != FP_ZERO)
+    if (std::isfinite(len)
+        && std::fpclassify(len) != FP_ZERO
+        )
     {
         v.fX /= len;
         v.fY /= len;
@@ -296,6 +298,10 @@ int32_t EalMan::computeDiffraction(
         if (angle < anglemax)
         {
             float a = static_cast<float>(m_data->gdfm.MaxAttenuation) * angle / anglemax;
+            if (!std::isfinite(a)
+                || a < static_cast<float>(INT32_MIN)
+                || a > static_cast<float>(INT32_MAX)
+                ) { return INT32_MIN; }
             return static_cast<int32_t>(a);
         }
     }
@@ -381,7 +387,7 @@ int32_t EalMan::ReadArrayData(
 
     dest.resize(count);
     if (!file.read(reinterpret_cast<char*>(dest.data()), dest.size() * sizeof(T))) { return toInt(EalError::FileInvalid); }
-    bytesRead += static_cast<uint32_t>(dest.size()) * sizeof(T);
+    bytesRead += static_cast<uint32_t>(dest.size() * sizeof(T));
     return toInt(EalError::OK);
 }
 /*
