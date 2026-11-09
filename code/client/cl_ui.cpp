@@ -235,6 +235,7 @@ void CL_InitUI( void ) {
 	uii.FS_FCloseFile			= FS_FCloseFile;
 	uii.FS_GetFileList			= FS_GetFileList;
 	uii.FS_ReadFile				= FS_ReadFile;
+	uii.FS_ReadNthFile			= FS_ReadNthFile;
 	uii.FS_FreeFile				= FS_FreeFile;
 
 	uii.R_RegisterModel			= re.RegisterModel;
